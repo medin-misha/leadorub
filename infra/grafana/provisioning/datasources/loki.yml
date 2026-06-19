@@ -1,0 +1,12 @@
+# Автоматическое подключение Loki как источника данных при старте Grafana.
+# Файл подхватывается через provisioning, ничего настраивать руками не нужно.
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    type: loki
+    access: proxy
+    # Адрес Loki внутри docker-сети leadorub.
+    url: http://loki:3100
+    isDefault: true
+    editable: true

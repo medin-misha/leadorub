@@ -1,0 +1,44 @@
+// Grafana Alloy — сборщик логов всех docker-контейнеров на хосте.
+// Поток: discovery.docker (находит контейнеры) -> relabel (чистим лейблы) ->
+// loki.source.docker (читает логи через docker API) -> loki.write (пушит в Loki).
+
+// 1. Находим все контейнеры через docker-сокет (монтируется в compose ro).
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+// 2. Приводим метаданные docker к удобным лейблам Loki.
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+
+  // Имя контейнера приходит как "/name" — срезаем ведущий слеш.
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+
+  // Compose-проект и сервис — удобно фильтровать в Grafana.
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_project"]
+    target_label  = "compose_project"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_compose_service"]
+    target_label  = "compose_service"
+  }
+}
+
+// 3. Читаем логи найденных контейнеров и отправляем в Loki.
+loki.source.docker "containers" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.containers.output
+  forward_to = [loki.write.default.receiver]
+}
+
+// 4. Endpoint Loki внутри docker-сети.
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

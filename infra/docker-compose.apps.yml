@@ -1,0 +1,64 @@
+# ============================================================================
+# Leadorub — слой приложений (сервисы из apps/).
+# Запуск (из папки infra/, ПОСЛЕ поднятой инфраструктуры):
+#   docker compose -f docker-compose.apps.yml up -d --build
+#
+# Переменные берутся из infra/.env. Подключение к БД/брокеру/хранилищу идёт
+# по именам docker-сервисов из docker-compose.infra.yml через общую сеть
+# `leadorub`. Сеть создаётся автоматически любым из compose-файлов (имя и driver
+# совпадают), но инфраструктуру всё равно поднимаем первой — иначе backend
+# и боты стартуют, но им некуда подключаться.
+# ============================================================================
+
+name: leadorub-apps
+
+services:
+  # --------------------------------------------------------------------------
+  # Backend — FastAPI API. Читает строки подключения (database_url, amqp_url,
+  # redis_url, minio_*) из infra/.env; лишние переменные он игнорирует.
+  # --------------------------------------------------------------------------
+  backend:
+    build:
+      context: ../apps/backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      # Синхронизация миграций с хостом: контейнер применяет файлы версий из
+      # репозитория (entrypoint делает `alembic upgrade head` при старте).
+      # Новую миграцию создаёшь на хосте — после рестарта backend её накатит.
+      - ../apps/backend/alembic/versions:/app/alembic/versions
+    networks:
+      - leadorub
+
+  # --------------------------------------------------------------------------
+  # Telegram user bot — long polling. Токен берём из user_bot и маппим в TOKEN,
+  # которую ждёт конфиг бота; backend доступен по имени сервиса.
+  # --------------------------------------------------------------------------
+  tg_user_bot:
+    build:
+      context: ../apps/tg_user_bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      TOKEN: ${user_bot}
+      BACKEND_URL: http://backend:8000/
+    depends_on:
+      - backend
+    networks:
+      - leadorub
+
+# ----------------------------------------------------------------------------
+# Общая сеть с infra. НЕ external: если сети ещё нет (apps подняли раньше infra),
+# compose создаст её сам; если её уже создал docker-compose.infra.yml — просто
+# переиспользует (будет безобидный warning "network ... was not created for
+# project"). Имя и driver совпадают с infra-compose, поэтому порядок запуска
+# больше не ломает старт.
+# ----------------------------------------------------------------------------
+networks:
+  leadorub:
+    name: leadorub
+    driver: bridge

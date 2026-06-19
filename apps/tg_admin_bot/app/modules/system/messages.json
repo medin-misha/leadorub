@@ -1,0 +1,11 @@
+{
+    "auth_missing_user": "Не удалось определить Telegram-пользователя для текущего update.",
+    "auth_backend_not_configured": "BACKEND_URL не настроен. System auth сейчас недоступен.",
+    "auth_backend_unavailable": "Backend временно недоступен. Попробуйте ещё раз позже.",
+    "auth_backend_unexpected_response": "Backend вернул неожиданный ответ. Проверьте системные логи.",
+    "auth_failed": "Не удалось завершить аутентификацию пользователя.",
+    "auth_status": "Системная auth-сессия активна.\n\nTelegram ID: <code>{telegram_id}</code>\nBackend user ID: <code>{backend_user_id}</code>\nUsername: {username}\nAuthenticated at: <code>{authenticated_at}</code>\nUser profile: {profile_state}\nCache state: {cache_size}",
+    "auth_status_missing_context": "Auth-сессия не найдена в runtime context текущего update.",
+    "user_sys_info_disabled": "Команда /usersysinfo доступна только когда debug=True.",
+    "user_sys_info": "System debug info for {username}\n\nTelegram user id: <code>{user_id}</code>\nChat id: <code>{chat_id}</code>\nFirst name: <code>{first_name}</code>\nLast name: <code>{last_name}</code>\nLanguage code: <code>{language_code}</code>\nAuth cache state: <code>{cache_state}</code>\nBackend URL: <code>{backend_url}</code>"
+}
