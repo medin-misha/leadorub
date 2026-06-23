@@ -4,6 +4,11 @@ from fastapi import APIRouter, Depends, Form, Query, Response, UploadFile, statu
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import database
+from app.modules.admin_module.dependencies import (
+    require_admin,
+    require_admin_or_service,
+    require_service,
+)
 from app.modules.system import CRUD
 
 from .models import TelegramUser, UserProfile, UserStats
@@ -35,7 +40,11 @@ SessionDep = Annotated[AsyncSession, Depends(database.get_session)]
 
 
 # TelegramUser
-@router.post("/login", response_model=TelegramUserRead)
+@router.post(
+    "/login",
+    response_model=TelegramUserRead,
+    dependencies=[Depends(require_service)],
+)
 async def login_telegram_user(
     data: TelegramUserLogin,
     session: SessionDep,
@@ -46,7 +55,11 @@ async def login_telegram_user(
     )
 
 
-@router.post("/users", response_model=TelegramUserRead)
+@router.post(
+    "/users",
+    response_model=TelegramUserRead,
+    dependencies=[Depends(require_admin_or_service)],
+)
 async def create_telegram_user(
     data: TelegramUserRegister,
     response: Response,
@@ -63,6 +76,7 @@ async def create_telegram_user(
     "/users/bulk",
     response_model=list[TelegramUserRead],
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_admin)],
 )
 async def bulk_create_telegram_users(
     data: list[TelegramUserRegister],
@@ -71,7 +85,11 @@ async def bulk_create_telegram_users(
     return await bulk_create_telegram_users_service(data=data, session=session)
 
 
-@router.get("/users/{id}", response_model=TelegramUserRead)
+@router.get(
+    "/users/{id}",
+    response_model=TelegramUserRead,
+    dependencies=[Depends(require_admin)],
+)
 async def get_telegram_user(
     id: int,
     session: SessionDep,
@@ -79,7 +97,11 @@ async def get_telegram_user(
     return await CRUD.get(model=TelegramUser, session=session, id=id)
 
 
-@router.get("/users", response_model=list[TelegramUserRead])
+@router.get(
+    "/users",
+    response_model=list[TelegramUserRead],
+    dependencies=[Depends(require_admin)],
+)
 async def list_telegram_users(
     session: SessionDep,
     page: Annotated[int, Query(ge=1)] = 1,
@@ -97,7 +119,11 @@ async def list_telegram_users(
     )
 
 
-@router.post("/newsletter", response_model=NewsletterResult)
+@router.post(
+    "/newsletter",
+    response_model=NewsletterResult,
+    dependencies=[Depends(require_admin)],
+)
 async def send_newsletter(
     session: SessionDep,
     payload: Annotated[str, Form()],
@@ -112,7 +138,11 @@ async def send_newsletter(
     return await send_newsletter_service(request=request, file=file, session=session)
 
 
-@router.patch("/users/{id}", response_model=TelegramUserRead)
+@router.patch(
+    "/users/{id}",
+    response_model=TelegramUserRead,
+    dependencies=[Depends(require_admin)],
+)
 async def patch_telegram_user(
     id: int,
     data: TelegramUserPatch,
@@ -121,7 +151,7 @@ async def patch_telegram_user(
     return await CRUD.patch(new_data=data, model=TelegramUser, session=session, id=id)
 
 
-@router.delete("/users/{id}")
+@router.delete("/users/{id}", dependencies=[Depends(require_admin)])
 async def delete_telegram_user(
     id: int,
     session: SessionDep,
@@ -132,7 +162,10 @@ async def delete_telegram_user(
 
 # UserProfile
 @router.post(
-    "/profile", response_model=UserProfileRead, status_code=status.HTTP_201_CREATED
+    "/profile",
+    response_model=UserProfileRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_admin)],
 )
 async def create_user_profile(
     data: UserProfileCreate,
@@ -141,7 +174,11 @@ async def create_user_profile(
     return await CRUD.create(data=data, model=UserProfile, session=session)
 
 
-@router.get("/profile/{id}", response_model=UserProfileRead)
+@router.get(
+    "/profile/{id}",
+    response_model=UserProfileRead,
+    dependencies=[Depends(require_admin)],
+)
 async def get_user_profile(
     id: int,
     session: SessionDep,
@@ -149,7 +186,11 @@ async def get_user_profile(
     return await CRUD.get(model=UserProfile, session=session, id=id)
 
 
-@router.get("/profile", response_model=list[UserProfileRead])
+@router.get(
+    "/profile",
+    response_model=list[UserProfileRead],
+    dependencies=[Depends(require_admin)],
+)
 async def list_user_profiles(
     session: SessionDep,
     page: Annotated[int, Query(ge=1)] = 1,
@@ -167,7 +208,11 @@ async def list_user_profiles(
     )
 
 
-@router.patch("/profile/{id}", response_model=UserProfileRead)
+@router.patch(
+    "/profile/{id}",
+    response_model=UserProfileRead,
+    dependencies=[Depends(require_admin)],
+)
 async def patch_user_profile(
     id: int,
     data: UserProfilePatch,
@@ -176,7 +221,7 @@ async def patch_user_profile(
     return await CRUD.patch(new_data=data, model=UserProfile, session=session, id=id)
 
 
-@router.delete("/profile/{id}")
+@router.delete("/profile/{id}", dependencies=[Depends(require_admin)])
 async def delete_user_profile(
     id: int,
     session: SessionDep,
@@ -187,7 +232,10 @@ async def delete_user_profile(
 
 # UserStats
 @router.post(
-    "/stats", response_model=UserStatsRead, status_code=status.HTTP_201_CREATED
+    "/stats",
+    response_model=UserStatsRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_admin)],
 )
 async def create_user_stats(
     data: UserStatsCreate,
@@ -196,7 +244,11 @@ async def create_user_stats(
     return await CRUD.create(data=data, model=UserStats, session=session)
 
 
-@router.get("/stats/{id}", response_model=UserStatsRead)
+@router.get(
+    "/stats/{id}",
+    response_model=UserStatsRead,
+    dependencies=[Depends(require_admin)],
+)
 async def get_user_stats(
     id: int,
     session: SessionDep,
@@ -204,7 +256,11 @@ async def get_user_stats(
     return await CRUD.get(model=UserStats, session=session, id=id)
 
 
-@router.get("/stats", response_model=list[UserStatsRead])
+@router.get(
+    "/stats",
+    response_model=list[UserStatsRead],
+    dependencies=[Depends(require_admin)],
+)
 async def list_user_stats(
     session: SessionDep,
     page: Annotated[int, Query(ge=1)] = 1,
@@ -222,7 +278,11 @@ async def list_user_stats(
     )
 
 
-@router.patch("/stats/{id}", response_model=UserStatsRead)
+@router.patch(
+    "/stats/{id}",
+    response_model=UserStatsRead,
+    dependencies=[Depends(require_admin)],
+)
 async def patch_user_stats(
     id: int,
     data: UserStatsPatch,
@@ -231,7 +291,7 @@ async def patch_user_stats(
     return await CRUD.patch(new_data=data, model=UserStats, session=session, id=id)
 
 
-@router.delete("/stats/{id}")
+@router.delete("/stats/{id}", dependencies=[Depends(require_admin)])
 async def delete_user_stats(
     id: int,
     session: SessionDep,

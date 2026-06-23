@@ -81,10 +81,10 @@ The client instantiates a new `aiobotocore` session and client for each call ins
 ### `handlers.py`
 FastAPI router containing the endpoint routes.
 - Registered with the `/files` prefix and `Files` tag.
-- Endpoints:
-  - `POST /api/files/` — Uploads a file.
-  - `GET /api/files/{id}` — Downloads a file.
-  - `DELETE /api/files/{id}` — Deletes a file.
+- Endpoints (auth gates from `app.modules.admin_module.dependencies`):
+  - `POST /api/files/` — Uploads a file. `require_admin` (Bearer JWT).
+  - `GET /api/files/{id}` — Downloads a file. `require_admin_or_service` (admin preview + bot newsletter download via `X-Service-Token`).
+  - `DELETE /api/files/{id}` — Deletes a file. `require_admin` (Bearer JWT).
 - Router requirements:
   - Keep handlers thin; coordinate between services and do not put business rules inside endpoints.
   - `SessionDep` dependency uses `Annotated[AsyncSession, Depends(database.get_session)]`.

@@ -269,6 +269,17 @@ Request body of `POST /telegram/users`:
 
 If handler behavior changes, keep response codes and idempotency rules explicit in both code and docs.
 
+### Authorization
+
+All endpoints are gated by dependencies from `app.modules.admin_module.dependencies`:
+
+- `POST /telegram/login` → `require_service` (only the user bot, via `X-Service-Token`).
+- `POST /telegram/users` → `require_admin_or_service` (bot registers users; admin panel also creates them).
+- Everything else (`users/bulk`, `GET`/`PATCH`/`DELETE` users, all `profile`/`stats`, `newsletter`)
+  → `require_admin` (Bearer JWT).
+
+When adding a new endpoint here, pick the matching gate explicitly via `dependencies=[Depends(...)]`.
+
 ## Change Rules
 
 Good changes in this module:

@@ -9,6 +9,10 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import database
+from app.modules.admin_module.dependencies import (
+    require_admin,
+    require_admin_or_service,
+)
 from app.modules.system import CRUD
 
 from .models import File
@@ -22,7 +26,12 @@ logger = logging.getLogger(__name__)
 SessionDep = Annotated[AsyncSession, Depends(database.get_session)]
 
 
-@router.post("/", response_model=FileRead, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    response_model=FileRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_admin)],
+)
 async def upload_file(
     session: SessionDep,
     file: UploadFile,
@@ -45,7 +54,11 @@ async def upload_file(
         raise
 
 
-@router.get("/{id}", response_class=StreamingResponse)
+@router.get(
+    "/{id}",
+    response_class=StreamingResponse,
+    dependencies=[Depends(require_admin_or_service)],
+)
 async def download_file(
     id: int,
     session: SessionDep,
@@ -62,7 +75,7 @@ async def download_file(
     )
 
 
-@router.delete("/{id}")
+@router.delete("/{id}", dependencies=[Depends(require_admin)])
 async def delete_file(
     id: int,
     session: SessionDep,
