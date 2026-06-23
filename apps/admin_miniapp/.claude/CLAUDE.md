@@ -119,13 +119,33 @@ content") surface via `extractError` as `store.error`.
   `Caddyfile` listens on `:80`, SPA-fallback to `index.html`, proxies `/api/*` to
   `backend:8000`. For prod, replace `:80` with a domain to get automatic TLS.
 
+## Auth (JWT)
+
+The app is gated behind admin login. Backend issues a single access JWT (no refresh).
+
+- `api/http.js` — request interceptor injects `Authorization: Bearer <token>` from
+  `localStorage['admin_token']`; response interceptor calls a runtime-registered handler
+  on `401` (set in `main.js`) → `auth.logout()` + redirect to `/login`. The handler is
+  registered at runtime (not imported) so `http.js` stays free of store/router cycles.
+- `api/auth.js` — `login`, `me`, and admins CRUD (`listAdmins`/`createAdmin`/`updateAdmin`/`removeAdmin`).
+- `stores/auth.js` — `token` (persisted in `localStorage`), `admin` (from `/auth/me`),
+  getter `isAuthenticated`; actions `login`/`fetchMe`/`logout`.
+- `router/index.js` — `/login` is `meta.public`; a global `beforeEach` redirects
+  unauthenticated users to `/login?redirect=...` and bounces logged-in users away from `/login`.
+- `views/LoginView.vue` — username/password form. `App.vue` shows the current admin +
+  "Выйти" and hides the tab bar until authenticated. `main.js` registers the 401 handler
+  and calls `fetchMe()` on boot if a token exists (validates it).
+
+Backend endpoints: `POST /api/auth/login`, `GET /api/auth/me`, `GET/POST /api/auth/admins`,
+`PATCH/DELETE /api/auth/admins/{id}`.
+
+### Admin tab
+
+`views/AdminView.vue` manages administrators: list (paginated), create, change password,
+toggle `is_active`, delete. Actions on your own account (deactivate/delete) are disabled
+in the UI and rejected by the backend (prevents self-lockout).
+
 ## Out of scope
 
-Telegram WebApp SDK & initData auth; Admin/Chat functionality;
-roles/permissions; frontend test framework; any backend changes.
-
-## Known issue
-
-The consumed CRUD endpoints have **no authorization**. Serving this admin exposes
-user management to anyone who can reach it. Acceptable only for the local stage; the
-follow-up is backend initData validation + an auth gate before any public deploy.
+Telegram WebApp SDK & initData auth; Chat functionality; roles/permissions
+(all admins are equal); frontend test framework.

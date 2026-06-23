@@ -1,0 +1,17 @@
+# Локальная раздача без TLS. Для прода замени ":80" на домен (admin.example.com)
+# — Caddy сам получит TLS-сертификат.
+:80 {
+	root * /srv
+	encode gzip
+
+	# API проксируем на backend в той же docker-сети (один origin → нет CORS).
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	# SPA-fallback: любые остальные пути отдаём index.html (client-side routing).
+	handle {
+		try_files {path} /index.html
+		file_server
+	}
+}
