@@ -13,6 +13,7 @@ from sqlalchemy import (
     DateTime,
     Date,
     Float,
+    func,
 )
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm.mapper import Mapper
@@ -214,6 +215,70 @@ class CRUD:
             raise
         except Exception as err:
             DBErrorHandler.handle(err=err, model=model, action="creating")
+
+    @staticmethod
+    def _apply_search(stmt, model: Type[ModelT], search: str | None, field: str | None):
+        """Применяет к запросу ту же фильтрацию search/field, что и `get()`.
+
+        Вынесено отдельно, чтобы count/get_column не дублировали логику фильтра.
+        """
+        search = search.strip() if search else None
+        field = field.strip() if field else None
+        if not search:
+            return stmt
+
+        mapper: Mapper = inspect(model)
+        model_columns = {column.name: column for column in mapper.columns}
+        if field is not None:
+            return CRUD._get_field_search(
+                stmt=stmt,
+                model=model,
+                model_columns=model_columns,
+                field=field,
+                search=search,
+            )
+        return CRUD._get_text_search(
+            stmt=stmt,
+            model_columns=model_columns,
+            search=search,
+        )
+
+    @staticmethod
+    async def count(
+        model: Type[ModelT],
+        session: AsyncSession,
+        search: str | None = None,
+        field: str | None = None,
+    ) -> int:
+        """Считает записи модели под фильтром search/field (без пагинации)."""
+        try:
+            stmt = CRUD._apply_search(
+                select(func.count()).select_from(model), model, search, field
+            )
+            result: Result = await session.execute(stmt)
+            return int(result.scalar_one())
+        except HTTPException:
+            raise
+        except Exception as err:
+            DBErrorHandler.handle(err=err, model=model, action="counting")
+
+    @staticmethod
+    async def get_column(
+        model: Type[ModelT],
+        session: AsyncSession,
+        column,
+        search: str | None = None,
+        field: str | None = None,
+    ) -> list:
+        """Возвращает значения одной колонки для всех записей под фильтром (без пагинации)."""
+        try:
+            stmt = CRUD._apply_search(select(column), model, search, field)
+            result: Result = await session.execute(stmt)
+            return list(result.scalars().all())
+        except HTTPException:
+            raise
+        except Exception as err:
+            DBErrorHandler.handle(err=err, model=model, action="reading")
 
     @staticmethod
     async def get(
