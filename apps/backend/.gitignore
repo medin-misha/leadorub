@@ -226,6 +226,5 @@ __marimo__/
 # Do not keep nested git repositories inside app/modules/.
 app/modules/**/__pycache__/
 app/modules/**/*.py[codz]
-app/modules/telegram_module/
 app/modules/test_rmq_module/
 app/modules/telegram_notification_module/
