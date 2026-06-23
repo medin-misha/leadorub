@@ -67,7 +67,7 @@ Search semantics: `search` alone = full-text contains over string columns; `sear
 the edit dialog PATCHes the nested entity if it has an `id`, otherwise POSTs it with
 `telegram_user_id`.
 
-## Newsletter tab (frontend only; backend stubbed)
+## Newsletter tab
 
 Compose a broadcast (text + one optional attachment) and pick an audience.
 
@@ -84,9 +84,9 @@ Compose a broadcast (text + one optional attachment) and pick an audience.
   `audienceLabel`, `keyboardLabel`, `keyboardValid`, `keyboardError`, `canAddButton`;
   actions `setAudience`/`setText`/`setFile`/`setKeyboardType`/`addButton`/`updateButton`/
   `removeButton`/`send`/`reset`.
-- `api/newsletter.js` — `newsletterApi.send(formData)` POSTs `multipart/form-data` to the
-  **proposed** `POST /telegram/newsletter` (`text?`, `file?`, `mode`, `search?`, `field?`,
-  `keyboard?`).
+- `api/newsletter.js` — `newsletterApi.send(formData)` POSTs `multipart/form-data` to
+  `POST /telegram/newsletter`: a single `payload` field (JSON body) + optional `file`.
+  Returns `{status, recipients}`.
 
 ### Message keyboard (buttons)
 
@@ -99,15 +99,16 @@ Compose a broadcast (text + one optional attachment) and pick an audience.
 - Vertical list: one button per row; `+` appends a row, disabled until the last button
   is valid (`canAddButton`). Send is blocked while `!keyboardValid` (error shown via
   `keyboardError`).
-- **Payload contract:** `store.send()` appends a single `keyboard` field — a JSON string
-  — only when buttons exist:
-  `{"type":"inline","buttons":[{"text":"...","url":"..."},{"text":"...","callback_data":"..."}]}`.
-  Per inline button only the filled key (`url` **or** `callback_data`) is serialized;
-  one button = one row backend-side. No buttons → no `keyboard` field.
+- **Payload contract:** `store.send()` serializes the whole body into one `payload` JSON
+  field: `{filters:{search,field}, text, use_buttons:"INLINE"|"REPLY"|null, buttons|null}`.
+  `keyboard.type` maps to `use_buttons` (uppercased); buttons become a flat list. Per
+  inline button only the filled key (`url` **or** `callback_data`) is serialized; one
+  button = one row backend-side. No buttons → `use_buttons` and `buttons` are `null`.
 
-**Stub:** the backend endpoint does not exist yet. `store.send()` calls a local
-`mockSend()` (≈800ms → `{status:'ok'}`); swap it for `newsletterApi.send(form)` when the
-endpoint ships. No recipient count is shown — the user list endpoint returns no total.
+**Backend wired:** `store.send()` calls `newsletterApi.send(form)` against the real
+`POST /telegram/newsletter`. On success the store keeps `{status, recipients}` and the
+view shows the recipient count; backend errors (e.g. 404 "no recipients", 400 "no
+content") surface via `extractError` as `store.error`.
 
 ## Run
 

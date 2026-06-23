@@ -25,7 +25,9 @@ function onSent() {
 
 <template>
   <div class="newsletter">
-    <p v-if="sentNotice" class="newsletter__notice">Рассылка поставлена в очередь ✓</p>
+    <p v-if="sentNotice" class="newsletter__notice">
+      Рассылка поставлена в очередь ✓<span v-if="store.result?.recipients != null"> — получателей: {{ store.result.recipients }}</span>
+    </p>
     <p v-if="store.error && !confirming" class="newsletter__error">{{ store.error }}</p>
 
     <div class="newsletter__cols">
