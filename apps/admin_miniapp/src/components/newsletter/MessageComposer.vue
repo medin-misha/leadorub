@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useNewsletterStore } from '@/stores/newsletter'
 import BaseFileInput from '@/components/ui/BaseFileInput.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
+import KeyboardEditor from '@/components/newsletter/KeyboardEditor.vue'
 
 const emit = defineEmits(['submit']) // просим вьюху открыть диалог подтверждения
 
@@ -32,8 +33,13 @@ const file = computed({
 
     <BaseFileInput v-model="file" label="Вложение" />
 
+    <KeyboardEditor />
+
     <div class="composer__actions">
-      <BaseButton :disabled="!store.canSend || store.sending" @click="emit('submit')">
+      <BaseButton
+        :disabled="!store.canSend || !store.keyboardValid || store.sending"
+        @click="emit('submit')"
+      >
         Разослать
       </BaseButton>
     </div>

@@ -28,6 +28,11 @@ async function confirm() {
         <span v-if="store.file">{{ store.file.name }}</span>
         <span v-else class="confirm__muted">— нет —</span>
       </p>
+      <p class="confirm__row">
+        <b>Кнопки:</b>
+        <span v-if="store.keyboardLabel">{{ store.keyboardLabel }}</span>
+        <span v-else class="confirm__muted">— нет —</span>
+      </p>
       <p v-if="store.error" class="confirm__error">{{ store.error }}</p>
     </div>
 

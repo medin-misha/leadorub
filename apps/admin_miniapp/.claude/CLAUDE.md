@@ -75,14 +75,35 @@ Compose a broadcast (text + one optional attachment) and pick an audience.
   (right), plus `NewsletterConfirmDialog`.
 - `components/newsletter/` — `AudiencePanel` (radio `all`/`filter`; reuses
   `UserSearchBar` for the filter inputs), `MessageComposer` (textarea + `BaseFileInput`
-  + send), `NewsletterConfirmDialog` (`BaseModal` summary).
+  + `KeyboardEditor` + send), `KeyboardEditor` (inline/reply toggle + per-button rows),
+  `NewsletterConfirmDialog` (`BaseModal` summary).
 - `components/ui/BaseFileInput.vue` — single-file `v-model` picker (name, size, image
   preview, remove).
 - `stores/newsletter.js` — Pinia store: `audience {mode,search,field}`, `text`, `file`,
-  `sending`, `error`, `result`; getters `canSend`, `audienceLabel`; actions
-  `setAudience`/`setText`/`setFile`/`send`/`reset`.
+  `keyboard {type,buttons}`, `sending`, `error`, `result`; getters `canSend`,
+  `audienceLabel`, `keyboardLabel`, `keyboardValid`, `keyboardError`, `canAddButton`;
+  actions `setAudience`/`setText`/`setFile`/`setKeyboardType`/`addButton`/`updateButton`/
+  `removeButton`/`send`/`reset`.
 - `api/newsletter.js` — `newsletterApi.send(formData)` POSTs `multipart/form-data` to the
-  **proposed** `POST /telegram/newsletter` (`text?`, `file?`, `mode`, `search?`, `field?`).
+  **proposed** `POST /telegram/newsletter` (`text?`, `file?`, `mode`, `search?`, `field?`,
+  `keyboard?`).
+
+### Message keyboard (buttons)
+
+`KeyboardEditor` builds an optional message keyboard mirroring Telegram semantics:
+
+- `keyboard.type`: `'inline' | 'reply'`. Each button: `{text, url, callback_data}`
+  (reply uses `text` only).
+- **Inline** requires `text` + exactly one of `url` / `callback_data` — the two inputs
+  are mutually exclusive (typing in one hides the other). **Reply** needs only `text`.
+- Vertical list: one button per row; `+` appends a row, disabled until the last button
+  is valid (`canAddButton`). Send is blocked while `!keyboardValid` (error shown via
+  `keyboardError`).
+- **Payload contract:** `store.send()` appends a single `keyboard` field — a JSON string
+  — only when buttons exist:
+  `{"type":"inline","buttons":[{"text":"...","url":"..."},{"text":"...","callback_data":"..."}]}`.
+  Per inline button only the filled key (`url` **or** `callback_data`) is serialized;
+  one button = one row backend-side. No buttons → no `keyboard` field.
 
 **Stub:** the backend endpoint does not exist yet. `store.send()` calls a local
 `mockSend()` (≈800ms → `{status:'ok'}`); swap it for `newsletterApi.send(form)` when the
