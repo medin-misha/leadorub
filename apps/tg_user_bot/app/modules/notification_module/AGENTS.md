@@ -18,7 +18,7 @@ This module is dependency-driven:
 - `buttons: list[TelegramButton]|None` — FLAT list (one button per row). INLINE buttons use `url`/`callback_data`; REPLY buttons use `requests_contect`/`request_location`/`web_app`.
 - `file_id: int|None` — backend `File.id`. Resolved via `GET /api/files/{id}` (download bytes once, reuse the returned Telegram file_id; `image/*` → `send_photo`, else `send_document`).
 
-Sender: `services/sender.py` (`build_markup`, `is_photo`, `send_notification`). File resolver: `services/backend_files.py`. Consumer wiring (`consumer_handler.py`, queue `telegram_notifications`) is unchanged.
+Sender: `services/sender.py` (`build_markup`, `is_photo`, `send_notification`). File resolver: `services/backend_files.py` — sends the `X-Service-Token` header (`SERVICE_TOKEN`) because backend gates `GET /api/files/{id}` with `require_admin_or_service`; without it the download is `401`. Consumer wiring (`consumer_handler.py`, queue `telegram_notifications`) is unchanged.
 
 ## How Consumer Registration works
 
