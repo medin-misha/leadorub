@@ -73,5 +73,18 @@ class MainSettings(BaseSettings):
     taskiq_schedule_prefix: str = "schedule"
     taskiq_debug_endpoints_enabled: bool = False
 
+    # Auth / Security
+    # Bootstrap-админ создаётся при старте, если такого ещё нет (см. lifecycle).
+    admin_username: str | None = None
+    admin_password: str | None = None
+    # Секрет для подписи JWT. Обязателен; генерируется случайно и хранится в .env.
+    jwt_secret_key: str
+    jwt_algorithm: str = "HS256"
+    # TTL access-токена в минутах (по умолчанию 12 часов).
+    jwt_access_token_expire_minutes: int = Field(default=720, ge=1)
+    # Общий статический токен для server-to-server вызовов (юзер-бот → backend).
+    # Если None — сервисные эндпоинты отклоняют любые запросы по X-Service-Token.
+    service_token: str | None = None
+
 
 settings = MainSettings()
