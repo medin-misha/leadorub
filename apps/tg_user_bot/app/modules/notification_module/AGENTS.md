@@ -9,24 +9,16 @@ This module is dependency-driven:
 - It relies on `app.modules.rmq_module` to register consumers and listen to queues.
 - It relies on `app.core.settings` to get the bot credentials and configuration.
 
-## Message Contract
+## Incoming RMQ message (broadcast)
 
-Incoming event payload validation is enforced using the `TelegramNotification` and `TelegramButton` Pydantic models.
+`TelegramNotification` payload:
+- `chat_ids: list[int|str]` — the consumer loops and sends to each (single message per broadcast, not per recipient).
+- `message: str|None` — text, or caption when a file is attached.
+- `use_buttons: "INLINE"|"REPLY"|None` — single key (replaces the old `inline_buttons`/`reply_buttons` flags).
+- `buttons: list[TelegramButton]|None` — FLAT list (one button per row). INLINE buttons use `url`/`callback_data`; REPLY buttons use `requests_contect`/`request_location`/`web_app`.
+- `file_id: int|None` — backend `File.id`. Resolved via `GET /api/files/{id}` (download bytes once, reuse the returned Telegram file_id; `image/*` → `send_photo`, else `send_document`).
 
-### `TelegramNotification`
-- `chat_id` (int | str): Target Telegram chat identifier.
-- `message` (str): Text message to be sent.
-- `inline_buttons` (bool | None): Flag for inline keyboard layout.
-- `reply_buttons` (bool | None): Flag for reply keyboard layout.
-- `buttons` (list[list[TelegramButton]] | None): Keyboard grid.
-
-### `TelegramButton`
-- `text` (str): Button text.
-- `requests_contect` (bool | None): Specifically spelled field request contact (as per requirements).
-- `request_location` (bool | None): Flag to request user location.
-- `web_app` (str | None): Target URL for Web App.
-
-Note: There is a compatibility validator mapping `request_contact` input to `requests_contect` if provided.
+Sender: `services/sender.py` (`build_markup`, `is_photo`, `send_notification`). File resolver: `services/backend_files.py`. Consumer wiring (`consumer_handler.py`, queue `telegram_notifications`) is unchanged.
 
 ## How Consumer Registration works
 
