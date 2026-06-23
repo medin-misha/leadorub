@@ -25,10 +25,11 @@
 
 ## Текущий функционал
 
-Сейчас в шаблоне подключены три модуля с разной ролью:
+Сейчас в шаблоне подключены четыре модуля с разной ролью:
 
 - `system` — обязательный системный infrastructure layer
 - `rmq_module` — общий RabbitMQ transport-layer
+- `notification_module` — RMQ-consumer, доставляющий пользователям сообщения и массовые рассылки от backend
 - `test_rmq_module` — демонстрационный модуль для проверки RMQ wiring
 
 Системный модуль предоставляет базовые команды:
@@ -47,6 +48,15 @@
 `rmq_module` не добавляет пользовательских Telegram-команд, но встраивается в
 общий lifecycle и поднимает RabbitMQ runtime, если есть consumer
 registrations и включён `RABBITMQ_CONSUMER_ENABLED=true`.
+
+`notification_module` — это RMQ-consumer поверх `rmq_module`. Он слушает очередь
+`telegram_notifications` и доставляет пользователям сообщения от backend: одиночные
+уведомления и массовые рассылки. Рассылка приходит ОДНИМ сообщением со списком
+`chat_ids` — бот сам перебирает получателей. Поддерживаются текст, одно вложение
+(резолвится по `file_id` через backend `GET /api/files/{id}`; картинка → фото,
+остальное → документ) и клавиатуры (`use_buttons: INLINE|REPLY` с плоским списком
+кнопок). Контракт сообщения — в
+[app/modules/notification_module/README.md](app/modules/notification_module/README.md).
 
 `test_rmq_module` нужен как встроенный пример использования `rmq_module`:
 

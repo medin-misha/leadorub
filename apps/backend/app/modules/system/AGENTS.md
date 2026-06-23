@@ -120,6 +120,15 @@ Agent expectations:
 - Preserve stable ordering for paginated list queries.
 - Keep input normalization in the public interface or in clearly named helpers.
 
+### `CRUD.count(...)` and `CRUD.get_column(...)` Behavior
+
+`CRUD.count(...)` and `CRUD.get_column(...)` are filtered read helpers that share the same `search`/`field` semantics as `get(...)` via the shared `_apply_search(...)` helper, so the filtering logic lives in one place.
+
+- `count(...)` returns an `int` — the number of rows matching the filter (no pagination).
+- `get_column(...)` returns the scalar values of a single column for all matching rows (no pagination); pass the column as `CRUD.get_column(model=..., column=Model.some_column, ...)`.
+
+Use them for aggregate/lookup needs (e.g. counting an audience, fetching a list of ids) instead of loading full ORM rows. Keep `_apply_search(...)` as the single source of the `search`/`field` filtering.
+
 ### `CRUD.bulk_create(...)` Behavior
 
 `CRUD.bulk_create(...)` is the shared path for batch inserting multiple records in a single transactional operation.
