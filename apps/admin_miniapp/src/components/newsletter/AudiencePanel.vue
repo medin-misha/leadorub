@@ -15,6 +15,15 @@ watch([mode, search, field], () => {
   store.setAudience({ mode: mode.value, search: search.value, field: field.value })
 })
 
+// При выходе из режима «по фильтру» сбрасываем локальный фильтр,
+// чтобы при повторном входе он совпадал с (пустым) UserSearchBar.
+watch(mode, (m) => {
+  if (m === 'all') {
+    search.value = ''
+    field.value = ''
+  }
+})
+
 // UserSearchBar уже дебаунсит и отдаёт { search, field }.
 function onSearch({ search: s, field: f }) {
   search.value = s

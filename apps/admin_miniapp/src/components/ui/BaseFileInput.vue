@@ -23,7 +23,13 @@ watch(
     if (file && file.type.startsWith('image/')) {
       previewUrl.value = URL.createObjectURL(file)
     }
-  }
+    // если файл убрали извне (например, после отправки) — сбрасываем native input,
+    // иначе повторный выбор того же файла не вызовет change
+    if (!file && inputRef.value) {
+      inputRef.value.value = ''
+    }
+  },
+  { immediate: true }
 )
 
 onBeforeUnmount(() => {

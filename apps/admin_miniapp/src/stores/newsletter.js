@@ -46,6 +46,7 @@ export const useNewsletterStore = defineStore('newsletter', {
     },
 
     async send() {
+      if (this.sending) return // защита от двойного клика / повторного входа
       this.error = null
       if (!this.canSend) {
         this.error = 'Добавьте текст или вложение'
