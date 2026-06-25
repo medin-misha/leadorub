@@ -157,7 +157,17 @@ async def startup_backend_client() -> None:
         return
 
     timeout = ClientTimeout(total=system_settings.backend_request_timeout)
-    session = ClientSession(timeout=timeout)
+    # Сервисный токен уходит дефолтным заголовком на каждый запрос сессии —
+    # один раз настроили, и оба вызова (/telegram/login, /telegram/users) уже
+    # авторизованы на стороне backend (require_service / require_admin_or_service).
+    headers: dict[str, str] = {}
+    if system_settings.backend_service_token:
+        headers["X-Service-Token"] = system_settings.backend_service_token
+    else:
+        logger.warning(
+            "SERVICE_TOKEN is not configured; backend calls will be rejected (401)."
+        )
+    session = ClientSession(timeout=timeout, headers=headers or None)
     _backend_client = BackendClient(session=session, base_url=base_url)
     logger.info("System backend client initialized for %s", base_url)
 

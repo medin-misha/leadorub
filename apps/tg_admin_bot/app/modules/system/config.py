@@ -19,6 +19,8 @@ class SystemModuleSettings(BaseModel):
     backend_url: str | None = None
     backend_api_prefix: str = "/api"
     backend_request_timeout: float = Field(default=10.0, gt=0)
+    # Сервисный токен для заголовка X-Service-Token (бот → backend).
+    backend_service_token: str | None = None
     auth_cache_max_size: int = Field(default=1000, ge=1)
     debug_commands_enabled: bool = False
 
@@ -53,6 +55,7 @@ def build_system_settings(
         backend_url=main_settings.backend_url,
         backend_api_prefix=main_settings.backend_api_prefix,
         backend_request_timeout=main_settings.backend_request_timeout,
+        backend_service_token=main_settings.backend_service_token,
         auth_cache_max_size=main_settings.auth_cache_max_size,
         debug_commands_enabled=main_settings.debug,
     )

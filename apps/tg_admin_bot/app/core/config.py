@@ -36,6 +36,12 @@ class MainSettings(BaseSettings):
         default=10.0,
         validation_alias="BACKEND_REQUEST_TIMEOUT",
     )
+    # Сервисный токен для server-to-server вызовов backend (X-Service-Token).
+    # Общий секрет с backend: в infra/.env это `service_token`.
+    backend_service_token: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("SERVICE_TOKEN", "service_token"),
+    )
     auth_cache_max_size: int = Field(
         default=1000, validation_alias="AUTH_CACHE_MAX_SIZE"
     )
