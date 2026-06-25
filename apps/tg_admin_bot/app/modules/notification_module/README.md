@@ -6,24 +6,35 @@
 
 ## Принцип работы
 
-1. Модуль подписывается на очередь `telegram_notifications` в обменнике `app.events` с ключом маршрутизации `telegram_notifications`.
+1. Модуль подписывается на очередь `admin_telegram_notifications` в обменнике `app.events` с ключом маршрутизации `admin_telegram_notifications`. Это отдельная очередь админ-бота — не общая `telegram_notifications`, которую слушает `tg_user_bot`. Обменник `app.events` типа `direct`, поэтому при совпадении ключа маршрутизации копия каждой пользовательской рассылки попадала бы и сюда; собственный ключ изолирует уведомления админ-бота от пользовательских.
 2. При поступлении сообщения запускается callback-функция `handle_telegram_notification`.
 3. Содержимое сообщения валидируется на соответствие контракту с помощью Pydantic-модели `TelegramNotification`.
 4. Собирается соответствующая клавиатура (inline или reply) с учётом параметров кнопок.
-5. Сообщение отправляется пользователю с помощью метода `Bot.send_message`.
+5. Если указан `file_id` — файл скачивается из бэкенда один раз (`GET /api/files/{id}` с заголовком `X-Service-Token`, см. ниже); при первой отправке используются байты, для остальных получателей переиспользуется Telegram file_id из ответа.
+6. Рассылка перебирает всех получателей из `chat_ids`; ошибка на одном получателе не прерывает рассылку.
 
 ## Контракт сообщения
 
 Входящие сообщения из RMQ должны соответствовать следующей структуре:
-- `chat_id` (int | str): ID чата получателя.
-- `message` (str): Текст сообщения.
-- `inline_buttons` (bool | None): Использовать ли inline-кнопки.
-- `reply_buttons` (bool | None): Использовать ли reply-кнопки.
-- `buttons` (list[list[dict]] | None): Двумерный массив с описанием кнопок:
-  - `text` (str): Текст кнопки.
-  - `requests_contect` (bool | None): Запрос контакта (с поддержкой опечатки из требований).
-  - `request_location` (bool | None): Запрос локации.
-  - `web_app` (str | None): URL Web App.
+
+- `chat_ids` (list[int | str]): список получателей — бот сам рассылает по всем.
+- `message` (str | None): текст сообщения или подпись к файлу.
+- `use_buttons` (None | "INLINE" | "REPLY"): тип клавиатуры.
+- `buttons` (list[dict] | None): плоский список кнопок (каждая — отдельный ряд):
+  - `text` (str): текст кнопки.
+  - `url` (str | None): ссылка (для INLINE).
+  - `callback_data` (str | None): callback (для INLINE).
+  - `requests_contect` / `request_location` / `web_app`: для REPLY-кнопок.
+- `file_id` (int | None): id модели `File` бэкенда. Бот скачивает файл по
+  `GET /api/files/{id}`, отправляет первому получателю и переиспользует Telegram
+  file_id для остальных. Картинка (`image/*`) уходит как фото, остальное — документом.
+
+## Авторизация на бэкенде
+
+Эндпоинт `GET /api/files/{id}` защищён на backend гейтом `require_admin_or_service`.
+Резолвер вложений (`services/backend_files.py`) шлёт статический заголовок
+`X-Service-Token` (значение из `SERVICE_TOKEN`, общий секрет с backend `service_token`).
+Без токена backend ответит `401` и рассылка с вложением не уйдёт.
 
 ## Подключение в приложении
 

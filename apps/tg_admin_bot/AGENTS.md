@@ -41,6 +41,20 @@ This module is also the mandatory infrastructure layer for future modules:
 - it exposes `login_required`
 - it publishes auth session data through runtime context
 
+The bot also includes `app/modules/notification_module` — an RMQ consumer (built on
+`rmq_module`) that delivers backend-originated messages to users: single notifications
+and broadcasts. A broadcast arrives as ONE message with a `chat_ids` list (the bot
+iterates recipients itself), supports an optional attachment (`file_id` resolved via
+backend `GET /api/files/{id}`; image → photo, else document) and `use_buttons:
+INLINE|REPLY` with a flat button list. See `app/modules/notification_module/AGENTS.md`.
+
+The bot also includes `app/modules/support_module` — support mode (FSM). `/support`
+enters `SupportStates.active`; every text message is published to the `telegram_support_in`
+queue (`rmq_publisher`) and gets a 👀 reaction strictly AFTER a successful publish.
+`/stop`, an inline button, or `/start` exit the mode. Admin replies arrive back through
+the existing `notification_module` (no extra code). Handler order matters — see
+`app/modules/support_module/AGENTS.md`.
+
 ## Design Rules
 
 - Keep `main.py` thin.
