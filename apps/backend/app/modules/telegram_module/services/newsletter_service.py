@@ -11,6 +11,7 @@ from app.modules.file_module.utils import sanitize_filename
 
 from ..models import TelegramUser
 from ..schemas import NewsletterRequest
+from ..utils.limits import MESSAGE_MAX_LENGTH
 from ..utils.newsletter import build_newsletter_payload
 
 # Контракт очереди бота (см. spec). Должны совпадать с consumer_handler в tg_user_bot.
@@ -35,6 +36,14 @@ async def send_newsletter(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Newsletter must contain text or a file",
+        )
+
+    # Длину ограничиваем лимитом Telegram (см. limits.py): иначе при наличии файла
+    # текст-подпись > 1024 уронит отправку у бота молча. Явно отдаём 400.
+    if request.text and len(request.text) > MESSAGE_MAX_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Text must not exceed {MESSAGE_MAX_LENGTH} characters",
         )
 
     # 2. Сначала проверяем, что под фильтр есть получатели — иначе не льём файл.

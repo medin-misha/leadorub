@@ -13,9 +13,10 @@ class SendNewsletterTests(unittest.IsolatedAsyncioTestCase):
     async def test_empty_audience_raises_404_and_does_not_publish(self) -> None:
         request = NewsletterRequest.model_validate({"text": "hi"})
         session = MagicMock()
-        with patch.object(CRUD, "count", AsyncMock(return_value=0)), patch.object(
-            rmq_publisher, "publish", AsyncMock()
-        ) as publish:
+        with (
+            patch.object(CRUD, "count", AsyncMock(return_value=0)),
+            patch.object(rmq_publisher, "publish", AsyncMock()) as publish,
+        ):
             with self.assertRaises(HTTPException) as ctx:
                 await send_newsletter(request=request, file=None, session=session)
             self.assertEqual(ctx.exception.status_code, 404)
@@ -29,15 +30,24 @@ class SendNewsletterTests(unittest.IsolatedAsyncioTestCase):
                 await send_newsletter(request=request, file=None, session=session)
             self.assertEqual(ctx.exception.status_code, 400)
 
+    async def test_text_over_limit_raises_400_and_does_not_publish(self) -> None:
+        request = NewsletterRequest.model_validate({"text": "a" * 1025})
+        session = MagicMock()
+        with patch.object(rmq_publisher, "publish", AsyncMock()) as publish:
+            with self.assertRaises(HTTPException) as ctx:
+                await send_newsletter(request=request, file=None, session=session)
+            self.assertEqual(ctx.exception.status_code, 400)
+            publish.assert_not_awaited()
+
     async def test_text_only_publishes_one_message(self) -> None:
         request = NewsletterRequest.model_validate({"text": "hello"})
         session = MagicMock()
-        with patch.object(CRUD, "count", AsyncMock(return_value=3)), patch.object(
-            CRUD, "get_column", AsyncMock(return_value=[10, 20, 30])
-        ), patch.object(rmq_publisher, "publish", AsyncMock()) as publish:
-            result = await send_newsletter(
-                request=request, file=None, session=session
-            )
+        with (
+            patch.object(CRUD, "count", AsyncMock(return_value=3)),
+            patch.object(CRUD, "get_column", AsyncMock(return_value=[10, 20, 30])),
+            patch.object(rmq_publisher, "publish", AsyncMock()) as publish,
+        ):
+            result = await send_newsletter(request=request, file=None, session=session)
 
         self.assertEqual(result, {"status": "queued", "recipients": 3})
         publish.assert_awaited_once()
