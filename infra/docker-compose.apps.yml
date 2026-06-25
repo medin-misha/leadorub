@@ -51,6 +51,22 @@ services:
     networks:
       - leadorub
 
+  # --------------------------------------------------------------------------
+  # Admin MiniApp — Vue SPA (админка). Caddy раздаёт собранную статику и
+  # проксирует /api на backend в общей сети (один origin → нет CORS).
+  # Доступна на http://localhost:8080.
+  # --------------------------------------------------------------------------
+  admin_miniapp:
+    build:
+      context: ../apps/admin_miniapp
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - leadorub
+
 # ----------------------------------------------------------------------------
 # Общая сеть с infra. НЕ external: если сети ещё нет (apps подняли раньше infra),
 # compose создаст её сам; если её уже создал docker-compose.infra.yml — просто
