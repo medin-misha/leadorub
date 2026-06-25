@@ -129,7 +129,5 @@ async def _broadcast_file(notification: TelegramNotification, reply_markup) -> N
                 if tg_file_id is None and message.document:
                     tg_file_id = message.document.file_id
         except Exception:
-            logger.exception(
-                "[notification] send file failed for chat_id=%s", chat_id
-            )
+            logger.exception("[notification] send file failed for chat_id=%s", chat_id)
         await asyncio.sleep(THROTTLE_SECONDS)
