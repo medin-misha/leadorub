@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useNewsletterStore } from '@/stores/newsletter'
+import { MESSAGE_MAX_LENGTH } from '@/constants'
 import BaseFileInput from '@/components/ui/BaseFileInput.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import KeyboardEditor from '@/components/newsletter/KeyboardEditor.vue'
@@ -28,8 +29,15 @@ const file = computed({
       v-model="text"
       class="composer__text"
       rows="8"
+      :maxlength="MESSAGE_MAX_LENGTH"
       placeholder="Текст рассылки…"
     />
+    <span
+      class="composer__counter"
+      :class="{ 'composer__counter--max': text.length >= MESSAGE_MAX_LENGTH }"
+    >
+      {{ text.length }} / {{ MESSAGE_MAX_LENGTH }}
+    </span>
 
     <BaseFileInput v-model="file" label="Вложение" />
 
@@ -71,6 +79,15 @@ const file = computed({
 .composer__text:focus {
   outline: none;
   border-color: var(--color-primary);
+}
+.composer__counter {
+  margin-top: calc(-1 * var(--space-2));
+  align-self: flex-end;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.composer__counter--max {
+  color: var(--color-danger);
 }
 .composer__actions {
   display: flex;
