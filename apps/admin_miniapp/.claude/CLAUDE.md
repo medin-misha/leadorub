@@ -161,7 +161,11 @@ the admin sees conversations here and replies on behalf of the bot.
   for media), `ChatThread` (auto-scroll to bottom), `MessageBubble` (admin right / user
   left), `ChatComposer` (textarea + `BaseFileInput`, Enter to send, Shift+Enter newline),
   `MediaAttachment` (fetches the attachment as a blob via `GET /files/{id}` so the auth
-  header is sent, then shows an image preview or a download link).
+  header is sent, then shows an image preview or a download link). The `isImage` regex
+  intentionally excludes `.svg`: an SVG opened as a top-level document can run an embedded
+  `<script>` in the panel's origin (Stored XSS), so SVGs fall through to the download link
+  instead of being rendered. The backend also serves SVGs as `application/octet-stream`
+  with `nosniff` (defense-in-depth).
 - `stores/chat.js` — Pinia store: `conversations`, `activeUid`, `messages`, `search`;
   actions `fetchConversations`/`setSearch`/`openConversation`/`fetchMessages`/
   `sendReply(text, file)`/`markRead` and the polling lifecycle (`startListPolling`/

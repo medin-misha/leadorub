@@ -12,7 +12,9 @@ const loading = ref(true)
 const failed = ref(false)
 
 // Картинку показываем превью; остальное — ссылкой на скачивание.
-const isImage = /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(props.fileName || '')
+// SVG намеренно исключён: его можно открыть как top-level документ и исполнить
+// встроенный <script> в origin'е панели (Stored XSS) — пусть качается, а не рендерится.
+const isImage = /\.(png|jpe?g|gif|webp|bmp)$/i.test(props.fileName || '')
 
 onMounted(async () => {
   try {
