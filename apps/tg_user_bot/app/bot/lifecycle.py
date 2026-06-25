@@ -11,6 +11,7 @@ import logging
 from aiogram import Bot, Dispatcher
 
 from app.core import MainSettings
+from app.modules.notification_module.services.idempotency import idempotency_store
 from app.modules.rmq_module.runtime import shutdown_rmq_runtime, startup_rmq_runtime
 from app.modules.system.runtime import shutdown_system_runtime, startup_system_runtime
 
@@ -26,6 +27,8 @@ def register_lifecycle(dispatcher: Dispatcher, settings: MainSettings) -> None:
         await bot.delete_webhook(drop_pending_updates=settings.drop_pending_updates)
         await startup_system_runtime(settings)
         await startup_rmq_runtime(settings)
+        # Подключаем Redis-стор идемпотентности рассылки (best-effort, см. degrade).
+        await idempotency_store.connect(settings)
         logger.info("Bot %s started in polling mode", settings.project_name)
 
     async def on_shutdown(bot: Bot) -> None:
@@ -33,6 +36,7 @@ def register_lifecycle(dispatcher: Dispatcher, settings: MainSettings) -> None:
 
         logger.info("Bot %s is shutting down", settings.project_name)
         await shutdown_rmq_runtime()
+        await idempotency_store.close()
         await shutdown_system_runtime()
         await bot.session.close()
 
