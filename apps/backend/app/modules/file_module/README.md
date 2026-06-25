@@ -140,7 +140,9 @@ Router объявлен в [handlers.py](handlers.py) с префиксом `/fi
 1. читает запись из БД через `CRUD.get()` — возвращает `404`, если не найдена;
 2. стримит байты из S3 чанками через `s3_client.stream()`;
 3. определяет `Content-Type` по расширению имени файла через `mimetypes`;
-4. формирует заголовок `Content-Disposition: attachment; filename*=UTF-8''<url-encoded-name>`, что позволяет браузерам и HTTP-клиентам корректно отобразить кириллическое имя.
+4. **понижает «опасные для инлайнового рендера» MIME-типы до `application/octet-stream`** — типы из `DANGEROUS_INLINE_MIME_TYPES` (`image/svg+xml`, `text/html`, `application/xhtml+xml`, `text/xml`, `application/xml`), которые браузер мог бы открыть как активный документ и исполнить встроенный `<script>` в origin'е панели (защита от Stored XSS — например, `evil.svg` от внешнего пользователя в чате);
+5. всегда добавляет заголовок `X-Content-Type-Options: nosniff`, чтобы браузер не угадывал MIME по содержимому и не рендерил octet-stream как SVG/HTML;
+6. формирует заголовок `Content-Disposition: attachment; filename*=UTF-8''<url-encoded-name>`, что позволяет браузерам и HTTP-клиентам корректно отобразить кириллическое имя.
 
 ### `DELETE /api/files/{id}`
 

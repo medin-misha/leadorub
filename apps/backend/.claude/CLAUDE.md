@@ -87,7 +87,7 @@ Handles file storage pipeline:
 - **Metadata Management**: Stores file metadata (original filename, public link, comment) in the `files` PostgreSQL table.
 - **API Endpoints**:
   - `POST /api/files/` — Uploads a file. If the PostgreSQL transaction fails, the file is automatically purged from the S3 bucket to prevent orphaned objects.
-  - `GET /api/files/{id}` — Downloads the file as a `StreamingResponse` with correct character encoding support in the `Content-Disposition` header.
+  - `GET /api/files/{id}` — Downloads the file as a `StreamingResponse` with correct character encoding support in the `Content-Disposition: attachment` header. **Security hardening:** always sends `X-Content-Type-Options: nosniff`, and downgrades MIME types that browsers could render as an active top-level document (executing an embedded `<script>` → Stored XSS) to `application/octet-stream`. The blocked types live in the `DANGEROUS_INLINE_MIME_TYPES` set in `handlers.py` (`image/svg+xml`, `text/html`, `application/xhtml+xml`, `text/xml`, `application/xml`).
   - `DELETE /api/files/{id}` — Deletes the database record transactionally first, then removes the corresponding S3 object (best-effort).
 
 ### 3. RMQ Module (`app/modules/rmq_module`)

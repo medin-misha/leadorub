@@ -1,4 +1,3 @@
-import io
 import logging
 import mimetypes
 from typing import Annotated
@@ -24,6 +23,22 @@ router = APIRouter(prefix="/files", tags=["Files"])
 logger = logging.getLogger(__name__)
 
 SessionDep = Annotated[AsyncSession, Depends(database.get_session)]
+
+# MIME-типы, которые браузер способен выполнить как активный top-level документ
+# (исполнить встроенный <script>). Если отдать такой файл с его «настоящим» MIME,
+# открытие ссылки в новой вкладке исполнит скрипт в origin'е админ-панели —
+# Stored XSS (например, evil.svg, присланный внешним пользователем в чат).
+# Поэтому подобные типы принудительно понижаем до application/octet-stream,
+# чтобы браузер скачивал файл, а не рендерил его.
+DANGEROUS_INLINE_MIME_TYPES: frozenset[str] = frozenset(
+    {
+        "image/svg+xml",
+        "text/html",
+        "application/xhtml+xml",
+        "text/xml",
+        "application/xml",
+    }
+)
 
 
 @router.post(
@@ -67,11 +82,22 @@ async def download_file(
     stream_gen = s3_client.stream(link=file_record.link)
 
     content_type, _ = mimetypes.guess_type(file_record.name)
+    media_type = content_type or "application/octet-stream"
+    # Опасные для инлайнового рендера типы понижаем до octet-stream, чтобы
+    # браузер их скачивал, а не исполнял как документ (защита от Stored XSS).
+    if media_type in DANGEROUS_INLINE_MIME_TYPES:
+        media_type = "application/octet-stream"
+
     encoded_name = quote(file_record.name, safe="")
     return StreamingResponse(
         stream_gen,
-        media_type=content_type or "application/octet-stream",
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_name}"},
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_name}",
+            # Запрещаем браузеру угадывать MIME по содержимому — иначе он мог бы
+            # «распознать» octet-stream как SVG/HTML и всё равно отрендерить.
+            "X-Content-Type-Options": "nosniff",
+        },
     )
 
 
