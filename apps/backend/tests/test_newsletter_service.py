@@ -7,6 +7,7 @@ from app.modules.system import CRUD
 from app.modules.rmq_module import rmq_publisher
 from app.modules.telegram_module.schemas import NewsletterRequest
 from app.modules.telegram_module.services.newsletter_service import send_newsletter
+from app.modules.telegram_module.utils.newsletter import build_newsletter_payload
 
 
 class SendNewsletterTests(unittest.IsolatedAsyncioTestCase):
@@ -60,3 +61,21 @@ class SendNewsletterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(kwargs["payload"]["chat_ids"], [10, 20, 30])
         self.assertEqual(kwargs["payload"]["message"], "hello")
         self.assertIsNone(kwargs["payload"]["file_id"])
+
+
+class BuildNewsletterPayloadTests(unittest.TestCase):
+    def test_build_payload_carries_broadcast_meta(self) -> None:
+        # Payload одного чанка несёт общий broadcast_id и диагностику chunk_*.
+        request = NewsletterRequest.model_validate({"text": "hi"})
+        payload = build_newsletter_payload(
+            chat_ids=[1, 2],
+            request=request,
+            file_id=None,
+            broadcast_id="bcast-1",
+            chunk_index=3,
+            chunk_total=10,
+        )
+        self.assertEqual(payload["chat_ids"], [1, 2])
+        self.assertEqual(payload["broadcast_id"], "bcast-1")
+        self.assertEqual(payload["chunk_index"], 3)
+        self.assertEqual(payload["chunk_total"], 10)

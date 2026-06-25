@@ -2,13 +2,19 @@ from ..schemas.newsletter import NewsletterRequest
 
 
 def build_newsletter_payload(
-    chat_ids: list, request: NewsletterRequest, file_id: int | None
+    chat_ids: list,
+    request: NewsletterRequest,
+    file_id: int | None,
+    broadcast_id: str,
+    chunk_index: int,
+    chunk_total: int,
 ) -> dict:
     """Собирает payload RMQ-сообщения для бота из запроса рассылки.
 
-    Контракт (см. docs/specs/2026-06-23-newsletter-broadcast-design.md):
-    chat_ids — все получатели одним сообщением; use_buttons — единый ключ;
-    buttons — плоский список; file_id — id модели File бэкенда (или None).
+    chat_ids — получатели ОДНОГО чанка (не вся аудитория); broadcast_id — общий
+    id всех чанков рассылки (для идемпотентности на стороне бота); chunk_index/
+    chunk_total — диагностика для логов. use_buttons — единый ключ; buttons —
+    плоский список; file_id — id модели File бэкенда (или None).
     """
     return {
         "chat_ids": chat_ids,
@@ -20,4 +26,7 @@ def build_newsletter_payload(
             else None
         ),
         "file_id": file_id,
+        "broadcast_id": broadcast_id,
+        "chunk_index": chunk_index,
+        "chunk_total": chunk_total,
     }
