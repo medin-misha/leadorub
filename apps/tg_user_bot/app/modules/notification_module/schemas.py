@@ -34,3 +34,9 @@ class TelegramNotification(BaseModel):
     use_buttons: Literal["INLINE", "REPLY"] | None = None
     buttons: list[TelegramButton] | None = None  # плоский список
     file_id: int | None = None  # id модели File бэкенда (не Telegram file_id)
+    # Идемпотентность рассылки: общий id всех чанков одной рассылки. None =
+    # дедуп выключен (старое сообщение / degrade на стороне бота).
+    broadcast_id: str | None = None
+    # Диагностика чанкования (для логов).
+    chunk_index: int | None = None
+    chunk_total: int | None = None

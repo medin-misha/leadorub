@@ -33,6 +33,27 @@ class TelegramNotificationSchemaTests(unittest.TestCase):
         self.assertIsNone(n.buttons)
         self.assertIsNone(n.file_id)
 
+    def test_notification_parses_broadcast_meta(self) -> None:
+        n = TelegramNotification.model_validate(
+            {
+                "chat_ids": [1, 2],
+                "message": "hi",
+                "broadcast_id": "bcast-1",
+                "chunk_index": 0,
+                "chunk_total": 5,
+            }
+        )
+        self.assertEqual(n.broadcast_id, "bcast-1")
+        self.assertEqual(n.chunk_index, 0)
+        self.assertEqual(n.chunk_total, 5)
+
+    def test_notification_broadcast_meta_optional(self) -> None:
+        # Обратная совместимость: сообщение без новых полей валидно, broadcast_id=None.
+        n = TelegramNotification.model_validate({"chat_ids": [1], "message": "hi"})
+        self.assertIsNone(n.broadcast_id)
+        self.assertIsNone(n.chunk_index)
+        self.assertIsNone(n.chunk_total)
+
     def test_request_contact_alias_preserved(self) -> None:
         btn = TelegramButton.model_validate({"text": "c", "request_contact": True})
         self.assertTrue(btn.requests_contect)
