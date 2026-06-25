@@ -32,6 +32,12 @@ Expected endpoints:
 - `POST /api/telegram/login`
 - `POST /api/telegram/users`
 
+Both endpoints are protected on the backend (`require_service` /
+`require_admin_or_service`). The client authenticates with a static
+`X-Service-Token` header, set once as a default header on the `aiohttp` session in
+`startup_backend_client()`. The token comes from `SERVICE_TOKEN` (shared secret with
+the backend's `service_token`). If it is unset, the backend rejects calls with `401`.
+
 The flow is:
 
 1. protected handler enters through `@login_required`
@@ -43,10 +49,11 @@ The flow is:
 
 ### Payload Shapes
 
-`POST /api/telegram/users` accepts a nested composite body. The bot sends only
-the required `telegram_user` identity; the optional `profile` and `stats`
-objects are omitted because the bot has no such data at `/start`. The field
-`last_seen_at` is no longer part of the create payload — the backend sets it
+`POST /api/telegram/users` accepts a nested composite body. The bot always sends
+the required `telegram_user` identity. The optional `profile` object is omitted
+(the bot has no such data). The optional `stats` object is sent **only** when
+`/start` carries a `source_*` deep-link (see "Source Deep-Links" below);
+otherwise it is omitted. `last_seen_at` is never sent — the backend sets it
 server-side.
 
 ```json
@@ -58,9 +65,31 @@ server-side.
     "last_name": "Petrov",
     "is_blocket_bot": false,
     "language_code": "ru"
+  },
+  "stats": {
+    "source": "instagram"
   }
 }
 ```
+
+### Source Deep-Links
+
+`t.me/<bot>?start=<payload>` is delivered to the bot as `/start <payload>`,
+where `payload` is restricted by Telegram to `A-Za-z0-9_-` (max 64 chars, no
+dots). The system module reads the marketing source from the payload using a
+prefix scheme `source_<value>`:
+
+- `t.me/<bot>?start=source_instagram` → `UserStats.source = "instagram"`
+- payloads without the `source_` prefix are ignored (source stays `None`)
+
+`deep_link.parse_source()` strips the prefix and truncates the value to the
+backend column limit (255). Attribution is **first-touch**: the source is
+captured only when the user is provisioned for the first time. Because backend
+registration is idempotent (`get_or_create` by `telegram_id`), a returning user
+clicking a new `source_*` link does NOT overwrite the existing source.
+
+To generate links, use `aiogram.utils.deep_linking.create_start_link(bot,
+payload="source_instagram")`.
 
 `POST /api/telegram/login` accepts `{ "telegram_id": 123 }` and returns the
 Telegram user. In the response, `last_seen_at` is no longer a top-level field —
@@ -71,6 +100,8 @@ mirroring the existing `user_profile` object.
 
 - `config.py`
   Module-specific settings built from the shared app config.
+- `deep_link.py`
+  Parses the `/start` deep-link payload (`source_*` → marketing source).
 - `schemas.py`
   Local Pydantic schemas that mirror the backend payload contract.
 - `client.py`
@@ -91,7 +122,10 @@ mirroring the existing `user_profile` object.
 ## Commands
 
 - `/start`
-  Shows available system commands and backend presence.
+  Shows available system commands and backend presence. Also provisions the
+  user and captures the marketing source from a `source_*` deep-link (see
+  "Source Deep-Links"). Backend errors here are swallowed so the greeting still
+  sends; the full auth flow runs later on the first protected handler.
 - `/authstatus`
   Protected command. Triggers auth flow if needed and prints cached auth state.
 - `/usersysinfo`
@@ -130,6 +164,9 @@ The module reads its settings from the shared application `.env`.
   API prefix, defaults to `/api`
 - `BACKEND_REQUEST_TIMEOUT`
   Total backend request timeout in seconds
+- `SERVICE_TOKEN`
+  Static server-to-server token sent as the `X-Service-Token` header on every
+  backend call (shared secret with the backend's `service_token`)
 - `AUTH_CACHE_MAX_SIZE`
   Maximum number of in-memory auth sessions
 - `DEBUG`

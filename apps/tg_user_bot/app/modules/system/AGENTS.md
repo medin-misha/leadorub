@@ -25,6 +25,7 @@ introspection.
 ## Design Rules
 
 - Keep backend integration isolated in `client.py`.
+- Keep deep-link payload parsing isolated in `deep_link.py`.
 - Keep auth orchestration in `auth/service.py`.
 - Keep handler protection in `auth/decorators.py`.
 - Keep user-facing strings in `messages.json`.
@@ -48,9 +49,10 @@ The expected flow is:
 ### Request/Response Shapes
 
 `POST /api/telegram/users` expects a nested composite body. Only the
-`telegram_user` identity is required; `profile` and `stats` are optional and the
-bot omits them (it has no such data at `/start`). `last_seen_at` is NOT sent —
-the backend sets it server-side.
+`telegram_user` identity is required. `profile` is always omitted. `stats` is
+sent only when `/start` carried a `source_*` deep-link (first-touch marketing
+attribution); otherwise it is omitted. `last_seen_at` is NOT sent — the backend
+sets it server-side.
 
 ```json
 {
@@ -61,9 +63,22 @@ the backend sets it server-side.
     "last_name": "Petrov",
     "is_blocket_bot": false,
     "language_code": "ru"
+  },
+  "stats": {
+    "source": "instagram"
   }
 }
 ```
+
+### Source Deep-Links
+
+`deep_link.parse_source()` extracts the marketing source from the `/start`
+payload via the `source_<value>` prefix scheme (`source_instagram` →
+`"instagram"`). The value is threaded through
+`ensure_authenticated(..., source=...)` →
+`_provision_backend_user(..., source)` → `_build_create_payload(..., source)`
+and only affects the provisioning branch. Attribution is first-touch: returning
+users keep their original source because backend registration is idempotent.
 
 `POST /api/telegram/login` (`{ "telegram_id": 123 }`) returns `TelegramUserRead`.
 `last_seen_at` is NO LONGER top-level; it now lives inside the nested

@@ -8,24 +8,54 @@
 
 from __future__ import annotations
 
+import logging
+
 from aiogram import Router
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandObject
+from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
 from app.core import settings
 from app.core.context import get_current_auth_session
-from app.modules.system.auth import get_cached_auth_session, login_required
+from app.modules.system.auth import (
+    ensure_authenticated,
+    get_cached_auth_session,
+    login_required,
+)
 from app.modules.system.auth.cache import auth_cache
+from app.modules.system.auth.service import AuthenticationFlowError
+from app.modules.system.client import BackendClientError
 from app.modules.system.config import system_settings
+from app.modules.system.deep_link import parse_source
 from app.modules.system.messages import get_messages
+
+logger = logging.getLogger(__name__)
 
 router = Router(name="system")
 _MESSAGES = get_messages()
 
 
 @router.message(Command("start"))
-async def start_command(message: Message) -> None:
-    """Подтверждает, что бот жив и сообщает базовые системные возможности."""
+async def start_command(
+    message: Message, command: CommandObject, state: FSMContext
+) -> None:
+    """Подтверждает, что бот жив, и фиксирует source из deep-link payload.
+
+    Telegram прокидывает `?start=<payload>` как `command.args`. По префиксной
+    схеме `source_<value>` бот извлекает маркетинговый источник и регистрирует
+    пользователя сразу здесь — source живёт только в этом сообщении, поэтому
+    откладывать провижининг до первого `@login_required` нельзя (потеряем
+    first-touch атрибуцию).
+    """
+
+    # /start сбрасывает любой активный режим (в т.ч. режим поддержки): для
+    # пользователя это «вернуться в начало», поэтому состояние FSM очищаем.
+    await state.clear()
+
+    # Источник важен только при первом контакте; для уже известных пользователей
+    # backend вернёт login 200 и source будет проигнорирован.
+    source = parse_source(command.args)
+    await _provision_on_start(message, source)
 
     backend_line = ""
     if settings.backend_url:
@@ -44,6 +74,30 @@ async def start_command(message: Message) -> None:
         f"{debug_line}"
         f"{backend_line}"
     )
+
+
+async def _provision_on_start(message: Message, source: str | None) -> None:
+    """Регистрирует пользователя на /start, не роняя ответ при сбое backend.
+
+    Повторяет стратегию `login_required`: ошибки backend логируются и
+    проглатываются, чтобы бот всё равно отправил приветствие. Полноценный
+    auth-flow всё равно отработает позже на первом защищённом хендлере.
+    """
+
+    telegram_user = message.from_user
+    if telegram_user is None:
+        return
+
+    try:
+        await ensure_authenticated(telegram_user=telegram_user, source=source)
+    except (BackendClientError, AuthenticationFlowError):
+        logger.warning(
+            "Provisioning on /start failed for user %s (source=%s); "
+            "deferring to login_required flow.",
+            telegram_user.id,
+            source,
+            exc_info=True,
+        )
 
 
 @router.message(Command("authstatus"))

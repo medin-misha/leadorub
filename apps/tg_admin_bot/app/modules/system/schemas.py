@@ -50,7 +50,7 @@ class TelegramUserLoginPayload(BaseModel):
 
 
 class TelegramUserIdentityCreate(BaseModel):
-    """Идентификационные данные Telegram-пользователя для регистрации."""
+    """Identity-часть composite payload регистрации (`telegram_user`)."""
 
     telegram_id: int
     username: str | None = None
@@ -60,17 +60,34 @@ class TelegramUserIdentityCreate(BaseModel):
     language_code: str | None = None
 
 
-class TelegramUserCreatePayload(BaseModel):
-    """Композитный payload регистрации Telegram-пользователя через backend.
+class TelegramUserStatsCreate(BaseModel):
+    """Опциональная stats-часть composite payload регистрации (`stats`)."""
 
-    Backend ожидает вложенную структуру: обязательный блок `telegram_user` и
-    опциональные `profile`/`stats`. Бот отправляет только идентификацию, а
-    профиль и статистику backend создаёт сам (пустой профиль + дефолтные stats).
+    source: str | None = None
+    state: str | None = None
+
+
+class TelegramUserProfileCreate(BaseModel):
+    """Опциональная profile-часть composite payload регистрации (`profile`)."""
+
+    phone: str | None = None
+    email: str | None = None
+    timezone: str | None = None
+    full_name: str | None = None
+    note: str | None = None
+
+
+class TelegramUserCreatePayload(BaseModel):
+    """Composite payload для регистрации Telegram-пользователя через backend.
+
+    Backend ожидает вложенную структуру `{telegram_user, profile?, stats?}`.
+    `telegram_user` обязателен; `profile` и `stats` опциональны и опускаются,
+    если у бота нет соответствующих данных (см. `exclude_none` в client.py).
     """
 
     telegram_user: TelegramUserIdentityCreate
-    profile: dict[str, object] | None = None
-    stats: dict[str, object] | None = None
+    profile: TelegramUserProfileCreate | None = None
+    stats: TelegramUserStatsCreate | None = None
 
 
 class TelegramUserRead(BaseModel):

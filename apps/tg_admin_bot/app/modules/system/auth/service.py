@@ -23,6 +23,7 @@ from app.modules.system.schemas import (
     TelegramUserCreatePayload,
     TelegramUserIdentityCreate,
     TelegramUserRead,
+    TelegramUserStatsCreate,
 )
 
 from .cache import AuthSession, auth_cache
@@ -41,9 +42,15 @@ def get_cached_auth_session(telegram_id: int) -> AuthSession | None:
 
 
 async def ensure_authenticated(
-    telegram_user: User, no_cache: bool = False
+    telegram_user: User, no_cache: bool = False, source: str | None = None
 ) -> AuthSession:
-    """Гарантирует auth-сессию пользователя через cache и backend API."""
+    """Гарантирует auth-сессию пользователя через cache и backend API.
+
+    `source` — маркетинговый источник из deep-link payload `/start`. Он
+    используется только на ветке провижининга (первый контакт): если backend
+    уже знает пользователя, login отдаёт 200 и source игнорируется. Это
+    реализует first-touch атрибуцию без доработок backend.
+    """
 
     cached_session = auth_cache.get(telegram_user.id)
     if no_cache:
@@ -57,9 +64,11 @@ async def ensure_authenticated(
         backend_user = await client.login_telegram_user(telegram_user.id)
     except BackendUserNotFoundError:
         logger.info(
-            "Telegram user %s not found; provisioning via backend.", telegram_user.id
+            "Telegram user %s not found; provisioning via backend (source=%s).",
+            telegram_user.id,
+            source,
         )
-        backend_user = await _provision_backend_user(client, telegram_user)
+        backend_user = await _provision_backend_user(client, telegram_user, source)
     except BackendClientError:
         raise
     except Exception as exc:
@@ -78,10 +87,11 @@ async def ensure_authenticated(
 async def _provision_backend_user(
     client: BackendClient,
     telegram_user: User,
+    source: str | None = None,
 ) -> TelegramUserRead:
     """Регистрирует пользователя и повторяет login как единую фазу auth-flow."""
 
-    await client.create_telegram_user(_build_create_payload(telegram_user))
+    await client.create_telegram_user(_build_create_payload(telegram_user, source))
 
     try:
         return await client.login_telegram_user(telegram_user.id)
@@ -91,13 +101,20 @@ async def _provision_backend_user(
         ) from exc
 
 
-def _build_create_payload(telegram_user: User) -> TelegramUserCreatePayload:
-    """Собирает композитный payload регистрации из Telegram user объекта aiogram.
+def _build_create_payload(
+    telegram_user: User,
+    source: str | None = None,
+) -> TelegramUserCreatePayload:
+    """Собирает composite payload регистрации из Telegram user объекта aiogram.
 
-    Бот отправляет только идентификацию (`telegram_user`); `profile` и `stats`
-    опускаются, чтобы backend создал пустой профиль и дефолтную статистику сам.
-    `last_seen_at` больше не передаётся — backend проставляет его на своей стороне.
+    Identity-часть `telegram_user` обязательна. `stats` добавляется только когда
+    из deep-link payload удалось извлечь `source` — иначе опускается
+    (`exclude_none` в client.py). `profile` бот на /start не владеет.
+    `last_seen_at` backend проставит серверно.
     """
+
+    # stats отправляем только при наличии source, чтобы не слать пустой объект.
+    stats = TelegramUserStatsCreate(source=source) if source else None
 
     return TelegramUserCreatePayload(
         telegram_user=TelegramUserIdentityCreate(
@@ -108,4 +125,5 @@ def _build_create_payload(telegram_user: User) -> TelegramUserCreatePayload:
             is_blocket_bot=telegram_user.is_bot,
             language_code=telegram_user.language_code,
         ),
+        stats=stats,
     )

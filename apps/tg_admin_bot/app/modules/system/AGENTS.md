@@ -25,6 +25,7 @@ introspection.
 ## Design Rules
 
 - Keep backend integration isolated in `client.py`.
+- Keep deep-link payload parsing isolated in `deep_link.py`.
 - Keep auth orchestration in `auth/service.py`.
 - Keep handler protection in `auth/decorators.py`.
 - Keep user-facing strings in `messages.json`.
@@ -45,15 +46,43 @@ The expected flow is:
 5. cache the successful backend payload
 6. expose the auth session through `app.core.context`
 
-### Backend Payload Contract
+### Request/Response Shapes
 
-- `POST /api/telegram/users` takes a NESTED composite body: a required
-  `telegram_user` block plus optional `profile`/`stats`. The bot sends only
-  `telegram_user` (via `TelegramUserIdentityCreate`) and lets backend create an
-  empty profile and default stats. `last_seen_at` is NOT sent on create.
-- `TelegramUserRead` has no top-level `last_seen_at`. It is nested under
-  `user_stats` (mirrors the `user_profile` nesting). Read schemas keep
-  `extra="ignore"`.
+`POST /api/telegram/users` expects a nested composite body. Only the
+`telegram_user` identity is required. `profile` is always omitted. `stats` is
+sent only when `/start` carried a `source_*` deep-link (first-touch marketing
+attribution); otherwise it is omitted. `last_seen_at` is NOT sent — the backend
+sets it server-side.
+
+```json
+{
+  "telegram_user": {
+    "telegram_id": 123,
+    "username": "ivan",
+    "first_name": "Ivan",
+    "last_name": "Petrov",
+    "is_blocket_bot": false,
+    "language_code": "ru"
+  },
+  "stats": {
+    "source": "instagram"
+  }
+}
+```
+
+### Source Deep-Links
+
+`deep_link.parse_source()` extracts the marketing source from the `/start`
+payload via the `source_<value>` prefix scheme (`source_instagram` →
+`"instagram"`). The value is threaded through
+`ensure_authenticated(..., source=...)` →
+`_provision_backend_user(..., source)` → `_build_create_payload(..., source)`
+and only affects the provisioning branch. Attribution is first-touch: returning
+users keep their original source because backend registration is idempotent.
+
+`POST /api/telegram/login` (`{ "telegram_id": 123 }`) returns `TelegramUserRead`.
+`last_seen_at` is NO LONGER top-level; it now lives inside the nested
+`user_stats` object (alongside `source` and `state`), mirroring `user_profile`.
 
 ## Safe Extension Points
 

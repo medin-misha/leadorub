@@ -112,9 +112,7 @@ class BackendClientTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(BackendUnexpectedResponseError):
             await client.create_telegram_user(
                 SimpleNamespace(
-                    model_dump=lambda mode="json", exclude_none=True: {
-                        "telegram_user": {"telegram_id": 1}
-                    }
+                    model_dump=lambda **kwargs: {"telegram_user": {"telegram_id": 1}}
                 )
             )
 
