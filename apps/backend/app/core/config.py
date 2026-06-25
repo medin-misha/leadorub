@@ -79,6 +79,11 @@ class MainSettings(BaseSettings):
     taskiq_schedule_prefix: str = "schedule"
     taskiq_debug_endpoints_enabled: bool = False
 
+    # Newsletter
+    # Размер чанка рассылки: бэкенд режет аудиторию на пачки по N получателей
+    # и публикует одно RMQ-сообщение на пачку (см. план chunking+idempotency).
+    newsletter_chunk_size: int = Field(default=500, ge=1)
+
     # Auth / Security
     # Bootstrap-админ создаётся при старте, если такого ещё нет (см. lifecycle).
     admin_username: str | None = None
