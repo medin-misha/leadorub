@@ -20,8 +20,6 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-    ports:
-      - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
     healthcheck:
@@ -41,8 +39,6 @@ services:
     # appendonly — persistence: данные переживут перезапуск контейнера.
     # requirepass — Redis закрыт паролем (единый источник — ${redis_password}).
     command: ["redis-server", "--appendonly", "yes", "--requirepass", "${redis_password}"]
-    ports:
-      - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -65,34 +61,11 @@ services:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
     ports:
-      - "5672:5672"    # AMQP
       - "15672:15672"  # management UI
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 15s
-      timeout: 10s
-      retries: 5
-    networks:
-      - leadorub
-
-  # --------------------------------------------------------------------------
-  # MongoDB — документное хранилище для модуля чата/сообщений.
-  # --------------------------------------------------------------------------
-  mongo:
-    image: mongo:7
-    restart: unless-stopped
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
-      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE}
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo_data:/data/db
-    healthcheck:
-      test: ["CMD-SHELL", "mongosh --quiet --eval 'db.adminCommand(\"ping\").ok' | grep -q 1"]
       interval: 15s
       timeout: 10s
       retries: 5
@@ -111,7 +84,6 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
     ports:
-      - "9000:9000"  # S3 API
       - "9001:9001"  # консоль
     volumes:
       - minio_data:/data
@@ -153,8 +125,6 @@ services:
     image: grafana/loki:3.4
     restart: unless-stopped
     command: ["-config.file=/etc/loki/config.yml"]
-    ports:
-      - "3100:3100"
     volumes:
       - ./loki/config.yml:/etc/loki/config.yml:ro
       - loki_data:/loki
@@ -172,8 +142,6 @@ services:
       - run
       - --server.http.listen-addr=0.0.0.0:12345
       - /etc/alloy/config.alloy
-    ports:
-      - "12345:12345"  # UI Alloy (debug)
     volumes:
       - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -210,7 +178,6 @@ volumes:
   pg_data:
   redis_data:
   rabbitmq_data:
-  mongo_data:
   minio_data:
   loki_data:
   grafana_data:

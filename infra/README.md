@@ -10,14 +10,13 @@
 
 | Сервис | Назначение | Порты (host) | Web/UI |
 |---|---|---|---|
-| `postgres` | основная БД (бэкенд) | 5432 | — |
-| `redis` | result backend и расписания taskiq | 6379 | — |
-| `rabbitmq` | брокер сообщений (aio-pika, taskiq) | 5672, 15672 | http://localhost:15672 |
-| `mongo` | хранилище модуля чата/сообщений | 27017 | — |
-| `minio` | S3-хранилище для file_module | 9000, 9001 | http://localhost:9001 |
+| `postgres` | основная БД (бэкенд) | — | — |
+| `redis` | result backend и расписания taskiq | — | — |
+| `rabbitmq` | брокер сообщений (aio-pika, taskiq) | 15672 | http://localhost:15672 |
+| `minio` | S3-хранилище для file_module | 9001 | http://localhost:9001 |
 | `minio-init` | одноразовое создание бакета | — | — |
-| `loki` | хранилище логов | 3100 | — |
-| `alloy` | сбор логов контейнеров → Loki | 12345 | http://localhost:12345 |
+| `loki` | хранилище логов | — | — |
+| `alloy` | сбор логов контейнеров → Loki | — | — |
 | `grafana` | дашборды и просмотр логов | 3000 | http://localhost:3000 |
 
 Логины/пароли для UI берутся из `.env` (RabbitMQ — `RABBITMQ_DEFAULT_*`, MinIO — `MINIO_ROOT_*`, Grafana — `GRAFANA_ADMIN_*`).
