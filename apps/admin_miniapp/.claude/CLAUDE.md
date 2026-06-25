@@ -79,6 +79,10 @@ Compose a broadcast (text + one optional attachment) and pick an audience.
   `NewsletterConfirmDialog` (`BaseModal` summary).
 - `components/ui/BaseFileInput.vue` — single-file `v-model` picker (name, size, image
   preview, remove).
+- The message textarea is capped at `MESSAGE_MAX_LENGTH` (1024, from `src/constants.js`) with
+  a live counter. This is Telegram's caption limit: when a file is attached the text is sent
+  as a caption, and exceeding 1024 makes the bot's send fail silently. The Chat composer uses
+  the same constant.
 - `stores/newsletter.js` — Pinia store: `audience {mode,search,field}`, `text`, `file`,
   `keyboard {type,buttons}`, `sending`, `error`, `result`; getters `canSend`,
   `audienceLabel`, `keyboardLabel`, `keyboardValid`, `keyboardError`, `canAddButton`;
@@ -145,7 +149,34 @@ Backend endpoints: `POST /api/auth/login`, `GET /api/auth/me`, `GET/POST /api/au
 toggle `is_active`, delete. Actions on your own account (deactivate/delete) are disabled
 in the UI and rejected by the backend (prevents self-lockout).
 
+## Chat tab
+
+Two-way support chat. A bot user types `/support` and their messages reach the backend;
+the admin sees conversations here and replies on behalf of the bot.
+
+- `views/ChatView.vue` — two panes: `ConversationList` (left) + active thread
+  (`ChatThread` + `ChatComposer`) on the right. `onMounted` starts polling;
+  `onUnmounted` stops ALL intervals (leak-free).
+- `components/chat/` — `ConversationList` (unread badge + last-message preview, `📎 Вложение`
+  for media), `ChatThread` (auto-scroll to bottom), `MessageBubble` (admin right / user
+  left), `ChatComposer` (textarea + `BaseFileInput`, Enter to send, Shift+Enter newline),
+  `MediaAttachment` (fetches the attachment as a blob via `GET /files/{id}` so the auth
+  header is sent, then shows an image preview or a download link).
+- `stores/chat.js` — Pinia store: `conversations`, `activeUid`, `messages`, `search`;
+  actions `fetchConversations`/`setSearch`/`openConversation`/`fetchMessages`/
+  `sendReply(text, file)`/`markRead` and the polling lifecycle (`startListPolling`/
+  `startThreadPolling`/`stopAllPolling`). **Polling:** open thread every ~4 s (incremental
+  `after_id` fetch with id dedupe + `_inFlight` guard), conversation list every ~10 s.
+  Switching conversation stops the previous thread interval first.
+- `api/chat.js` — `listConversations`, `getMessages(uid,{after_id,limit})`,
+  `reply(uid,{text,file})` (multipart), `markRead(uid)`, `fileObjectUrl(fileId)` against
+  `/api/chat/*` (`require_admin`).
+
+Media in the support chat = photos & documents (≤10 MB); the bot uploads inbound media to
+the backend over HTTP. Real-time is polling by design (no WebSocket/SSE infra). See the
+end-to-end design in `docs/specs/2026-06-23-support-chat-design.md`.
+
 ## Out of scope
 
-Telegram WebApp SDK & initData auth; Chat functionality; roles/permissions
-(all admins are equal); frontend test framework.
+Telegram WebApp SDK & initData auth; roles/permissions (all admins are equal);
+frontend test framework.
