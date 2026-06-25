@@ -1,7 +1,10 @@
+from uuid import uuid4
+
 from fastapi import HTTPException, UploadFile, status
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.modules.system import CRUD
 from app.modules.rmq_module import rmq_publisher
 from app.modules.file_module.models import File
@@ -88,17 +91,32 @@ async def send_newsletter(
         field=request.filters.field,
     )
 
-    # 5. Публикуем ОДНО сообщение со списком chat_ids.
-    payload = build_newsletter_payload(
-        chat_ids=chat_ids, request=request, file_id=file_id
-    )
-    await rmq_publisher.publish(
-        event=NEWSLETTER_EVENT,
-        payload=payload,
-        queue_name=NEWSLETTER_QUEUE,
-        routing_key=NEWSLETTER_QUEUE,
-        exchange_name=NEWSLETTER_EXCHANGE,
-        exchange_type=NEWSLETTER_EXCHANGE_TYPE,
-    )
+    # 5. Один broadcast_id на всю рассылку — общий ключ дедупа для всех чанков.
+    broadcast_id = str(uuid4())
 
-    return {"status": "queued", "recipients": recipients}
+    # Режем аудиторию на чанки: одно RMQ-сообщение = один чанк. Это ограничивает
+    # окно неакнутого сообщения (иначе длинная рассылка > consumer_timeout RMQ
+    # → редоставка → дубль всей аудитории) и радиус повторных отправок при краше.
+    chunk_size = settings.newsletter_chunk_size
+    chunks = [chat_ids[i : i + chunk_size] for i in range(0, len(chat_ids), chunk_size)]
+    chunk_total = len(chunks)
+
+    for chunk_index, chunk in enumerate(chunks):
+        payload = build_newsletter_payload(
+            chat_ids=chunk,
+            request=request,
+            file_id=file_id,
+            broadcast_id=broadcast_id,
+            chunk_index=chunk_index,
+            chunk_total=chunk_total,
+        )
+        await rmq_publisher.publish(
+            event=NEWSLETTER_EVENT,
+            payload=payload,
+            queue_name=NEWSLETTER_QUEUE,
+            routing_key=NEWSLETTER_QUEUE,
+            exchange_name=NEWSLETTER_EXCHANGE,
+            exchange_type=NEWSLETTER_EXCHANGE_TYPE,
+        )
+
+    return {"status": "queued", "recipients": recipients, "broadcast_id": broadcast_id}

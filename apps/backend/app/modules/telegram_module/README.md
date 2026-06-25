@@ -287,6 +287,21 @@ from app.modules.telegram_module import TelegramUser, UserProfile, UserStats
 - `buttons`: плоский список `{ text, url?, callback_data? }` (url/callback_data — только для INLINE).
 
 Логика: проверяем число получателей под фильтром (если 0 — `404`), грузим файл через
-`file_module`, берём `telegram_id` всех получателей и публикуем **одно** сообщение в
-RabbitMQ (очередь `telegram_notifications`) со списком `chat_ids`. Сам перебор получателей
-делает `tg_user_bot`. Поле `file_id` в сообщении — это `id` модели `File` бэкенда.
+`file_module`, берём `telegram_id` всех получателей, генерируем один `broadcast_id`
+(`uuid4`) и режем аудиторию на чанки по `newsletter_chunk_size` (по умолчанию 500),
+публикуя в RabbitMQ (очередь `telegram_notifications`) **по одному** сообщению на чанк —
+всего `ceil(N / chunk_size)` сообщений с общим `broadcast_id`. Перебор получателей внутри
+чанка делает `tg_user_bot`.
+
+Payload каждого сообщения, помимо `chat_ids` (получатели **одного** чанка), `message`,
+`use_buttons`, `buttons` и `file_id`, несёт:
+- `broadcast_id` — общий id всех чанков одной рассылки; на стороне бота это ключ дедупа
+  (через Redis `SET NX`), чтобы редоставка чанка не порождала повторные отправки;
+- `chunk_index` / `chunk_total` — диагностика для логов.
+
+Поле `file_id` — это `id` модели `File` бэкенда. Ответ эндпоинта (`NewsletterResult`)
+содержит `broadcast_id` для трассировки.
+
+**Зачем чанкование:** одно сообщение = один чанк (≤`chunk_size` получателей), поэтому окно
+неподтверждённого сообщения мало́ и заведомо укладывается в `consumer_timeout` RabbitMQ
+(30 мин). Иначе длинная рассылка превысила бы таймаут → редоставка → дубль всей аудитории.

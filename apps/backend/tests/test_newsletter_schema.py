@@ -66,16 +66,33 @@ class BuildPayloadTests(unittest.TestCase):
                 "buttons": [{"text": "Site", "url": "http://a"}],
             }
         )
-        payload = build_newsletter_payload(chat_ids=[1, 2, 3], request=req, file_id=42)
+        payload = build_newsletter_payload(
+            chat_ids=[1, 2, 3],
+            request=req,
+            file_id=42,
+            broadcast_id="bcast-x",
+            chunk_index=0,
+            chunk_total=1,
+        )
         self.assertEqual(payload["chat_ids"], [1, 2, 3])
         self.assertEqual(payload["message"], "hello")
         self.assertEqual(payload["use_buttons"], "INLINE")
         self.assertEqual(payload["buttons"], [{"text": "Site", "url": "http://a"}])
         self.assertEqual(payload["file_id"], 42)
+        self.assertEqual(payload["broadcast_id"], "bcast-x")
+        self.assertEqual(payload["chunk_index"], 0)
+        self.assertEqual(payload["chunk_total"], 1)
 
     def test_payload_no_buttons_no_file(self) -> None:
         req = NewsletterRequest.model_validate({"text": "hello"})
-        payload = build_newsletter_payload(chat_ids=[1], request=req, file_id=None)
+        payload = build_newsletter_payload(
+            chat_ids=[1],
+            request=req,
+            file_id=None,
+            broadcast_id="bcast-y",
+            chunk_index=2,
+            chunk_total=5,
+        )
         self.assertIsNone(payload["buttons"])
         self.assertIsNone(payload["file_id"])
         self.assertIsNone(payload["use_buttons"])

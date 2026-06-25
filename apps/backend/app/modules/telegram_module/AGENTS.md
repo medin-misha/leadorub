@@ -325,13 +325,25 @@ This module should stay reusable, predictable, and centered on Telegram user ide
 Flow (`services/newsletter_service.py`): validate (text OR file required) →
 `CRUD.count(TelegramUser, search, field)` (0 → 404) → upload `file` via `file_module`
 (`s3_client` + `File`) capturing `File.id` → `CRUD.get_column(TelegramUser,
-TelegramUser.telegram_id, ...)` → publish ONE RMQ message.
+TelegramUser.telegram_id, ...)` → generate one `broadcast_id` (`uuid4`) → split recipients
+into chunks of `settings.newsletter_chunk_size` (default 500, ENV `newsletter_chunk_size`)
+→ publish ONE RMQ message **per chunk** (`ceil(N / chunk_size)` messages, all sharing the
+same `broadcast_id`).
 
 Published message (`rmq_publisher.publish`): event `telegram.newsletter`, queue
 `telegram_notifications`, routing key `telegram_notifications`, exchange `app.events`
 (direct). Payload: `{ chat_ids: list[int], message: str|None, use_buttons:
-"INLINE"|"REPLY"|null, buttons: [{text,url?,callback_data?}]|null, file_id: int|null }`.
-`file_id` is the backend `File.id`; the bot resolves it via `GET /api/files/{id}`.
+"INLINE"|"REPLY"|null, buttons: [{text,url?,callback_data?}]|null, file_id: int|null,
+broadcast_id: str, chunk_index: int, chunk_total: int }`. `chat_ids` are the recipients of
+ONE chunk (not the whole audience); `broadcast_id` is shared by every chunk of a broadcast
+and is the dedup key the bot uses (`IdempotencyStore`, `SET NX`); `chunk_index`/`chunk_total`
+are diagnostics for logs. `file_id` is the backend `File.id`; the bot resolves it via
+`GET /api/files/{id}`. The endpoint response carries `broadcast_id` (`NewsletterResult`) for
+tracing.
+
+Why chunk: one message = one chunk (≤`chunk_size` recipients), so the un-acked message
+window stays small and well within RabbitMQ `consumer_timeout` (30 min). Without it a long
+broadcast would exceed the timeout → redelivery → the whole audience duplicated.
 
 Recipient filtering reuses `CRUD` (`count` / `get_column` with the same `search`/`field`
 semantics as `GET /telegram/users`). No new DB model/migration.

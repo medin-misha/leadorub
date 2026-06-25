@@ -25,10 +25,12 @@ fixed:
   from the backend's existing `GET /api/files/{id}` (it already has `BACKEND_URL` + an
   aiohttp client), then uploads to Telegram once and reuses the returned Telegram file_id
   for the remaining recipients.
-- **Fan-out happens in the bot.** The backend publishes exactly **one** RMQ message with
-  `chat_ids: list`. One message per recipient is explicitly forbidden. We do **not** split
-  the list into batches for now (single message for the whole audience); batching is a noted
-  future option, not in scope.
+- **Fan-out happens in the bot.** The backend publishes RMQ message(s) carrying
+  `chat_ids: list`. One message per recipient is explicitly forbidden.
+  **Update (2026-06-25):** superseded — the backend now splits the audience into chunks of
+  `newsletter_chunk_size` (one RMQ message per chunk, all sharing one `broadcast_id`) to bound
+  the un-acked window under RabbitMQ `consumer_timeout`; the bot dedups recipients via Redis
+  `SET NX`. See plan `superpowers/plans/2026-06-25-newsletter-chunking-idempotency.md`.
 - **Single `use_buttons` key.** The RMQ contract uses one field `use_buttons: null|INLINE|REPLY`
   (mirroring the backend request contract), replacing the bot's current two boolean flags
   `inline_buttons` / `reply_buttons`.
@@ -207,7 +209,9 @@ The RMQ contract above is the fixed interface between the two services. After th
 
 ## Out of scope (YAGNI)
 
-Batching/chunking of `chat_ids`; persisting broadcast history; scheduling; delivery
+~~Batching/chunking of `chat_ids`~~ (**now implemented** — plan
+`2026-06-25-newsletter-chunking-idempotency.md`: chunks of `newsletter_chunk_size` with a
+shared `broadcast_id`, Redis dedup in the bot); persisting broadcast history; scheduling; delivery
 receipts; admin-panel frontend changes to send `use_buttons`/`buttons` (the current frontend
 sends text+file only — a small follow-up will extend it to the richer body); real Telegram
 file_id pre-upload; rate-limit tuning beyond a basic throttle.

@@ -46,3 +46,5 @@ class NewsletterRequest(BaseModel):
 class NewsletterResult(BaseModel):
     status: str
     recipients: int
+    # Общий id всех чанков рассылки — для трассировки/дедупа на стороне бота.
+    broadcast_id: str | None = None

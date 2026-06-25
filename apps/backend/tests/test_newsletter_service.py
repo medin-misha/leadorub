@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi import HTTPException
 
+from app.core.config import settings
 from app.modules.system import CRUD
 from app.modules.rmq_module import rmq_publisher
 from app.modules.telegram_module.schemas import NewsletterRequest
@@ -50,7 +51,10 @@ class SendNewsletterTests(unittest.IsolatedAsyncioTestCase):
         ):
             result = await send_newsletter(request=request, file=None, session=session)
 
-        self.assertEqual(result, {"status": "queued", "recipients": 3})
+        # Контракт изменён: ответ несёт broadcast_id; ≤chunk_size получателей → 1 публикация.
+        self.assertEqual(result["status"], "queued")
+        self.assertEqual(result["recipients"], 3)
+        self.assertIsNotNone(result["broadcast_id"])
         publish.assert_awaited_once()
         kwargs = publish.await_args.kwargs
         self.assertEqual(kwargs["event"], "telegram.newsletter")
@@ -61,6 +65,48 @@ class SendNewsletterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(kwargs["payload"]["chat_ids"], [10, 20, 30])
         self.assertEqual(kwargs["payload"]["message"], "hello")
         self.assertIsNone(kwargs["payload"]["file_id"])
+        # broadcast-мета синхронизирована с ответом.
+        self.assertEqual(kwargs["payload"]["broadcast_id"], result["broadcast_id"])
+        self.assertEqual(kwargs["payload"]["chunk_index"], 0)
+        self.assertEqual(kwargs["payload"]["chunk_total"], 1)
+
+
+class SendNewsletterChunkingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_send_newsletter_splits_into_chunks(self) -> None:
+        # 1200 получателей при chunk_size=500 → 3 чанка (500, 500, 200).
+        chat_ids = list(range(1, 1201))
+        request = NewsletterRequest.model_validate({"text": "hello"})
+        session = MagicMock()
+        with (
+            patch.object(settings, "newsletter_chunk_size", 500),
+            patch.object(CRUD, "count", AsyncMock(return_value=len(chat_ids))),
+            patch.object(CRUD, "get_column", AsyncMock(return_value=chat_ids)),
+            patch.object(rmq_publisher, "publish", AsyncMock()) as publish,
+        ):
+            result = await send_newsletter(request=request, file=None, session=session)
+
+        self.assertEqual(result["recipients"], 1200)
+        # ceil(1200 / 500) = 3 публикации.
+        self.assertEqual(publish.await_count, 3)
+        # broadcast_id одинаков во всех чанках и равен возвращённому.
+        broadcast_ids = {
+            call.kwargs["payload"]["broadcast_id"] for call in publish.await_args_list
+        }
+        self.assertEqual(broadcast_ids, {result["broadcast_id"]})
+        # размеры чанков по порядку.
+        sizes = [
+            len(call.kwargs["payload"]["chat_ids"]) for call in publish.await_args_list
+        ]
+        self.assertEqual(sizes, [500, 500, 200])
+        # chunk_total одинаков, chunk_index покрывает 0..2.
+        totals = {
+            call.kwargs["payload"]["chunk_total"] for call in publish.await_args_list
+        }
+        self.assertEqual(totals, {3})
+        indices = sorted(
+            call.kwargs["payload"]["chunk_index"] for call in publish.await_args_list
+        )
+        self.assertEqual(indices, [0, 1, 2])
 
 
 class BuildNewsletterPayloadTests(unittest.TestCase):
