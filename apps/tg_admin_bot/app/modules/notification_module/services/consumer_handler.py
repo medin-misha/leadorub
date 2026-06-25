@@ -6,9 +6,13 @@ from .sender import send_notification
 
 logger = getLogger(__name__)
 
-QUEUE_NAME = "telegram_notifications"
+QUEUE_NAME = "admin_telegram_notifications"
 EXCHANGE_NAME = "app.events"
-ROUTING_KEY = "telegram_notifications"
+# Отдельный routing key, а не общий "telegram_notifications": exchange "app.events"
+# типа direct, поэтому сообщение копируется во ВСЕ очереди с совпадающим ключом.
+# Если оставить старый ключ — admin-бот получал бы копии всех пользовательских
+# рассылок. Свой ключ изолирует очередь admin-бота от user-бота.
+ROUTING_KEY = "admin_telegram_notifications"
 
 
 async def handle_telegram_notification(message: RMQMessage) -> None:
