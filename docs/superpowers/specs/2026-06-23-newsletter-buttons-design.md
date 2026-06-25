@@ -117,7 +117,4 @@ keyboard: { type: 'inline', buttons: [] }  // type: 'inline' | 'reply'
 Синхронизировать `apps/admin_miniapp/.claude/CLAUDE.md` и `apps/admin_miniapp/README.md`:
 описать `KeyboardEditor`, новый стейт/геттеры/экшены стора и контракт поля `keyboard`.
 
-## Вне scope
 
-Изменения бэкенда; сетка кнопок (несколько в ряд); ограничения Telegram на число
-кнопок; тесты фронтенда (в модуле нет тест-фреймворка).
