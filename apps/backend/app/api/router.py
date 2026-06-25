@@ -8,6 +8,7 @@ from app.modules.admin_module.handlers import router as admin_router
 from app.modules.taskiq_module.config import taskiq_settings
 from app.modules.taskiq_module.handlers import router as taskiq_router
 from app.modules.telegram_module.handlers import router as tg_router
+from app.modules.chat_module.handlers import router as chat_router
 
 try:
     from app.modules.telegram_notification_module.handlers import (
@@ -33,6 +34,9 @@ if taskiq_settings.debug and taskiq_settings.debug_endpoints_enabled:
 
 # telegram modules
 router.include_router(tg_router)
+
+# чат поддержки (admin ↔ user)
+router.include_router(chat_router)
 
 # telegram notification test router is registered if debug is True and the router is available
 if settings.debug and tg_notif_router is not None:

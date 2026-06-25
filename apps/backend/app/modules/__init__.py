@@ -2,6 +2,7 @@ from .system import Base, TimestampMixin
 from .file_module import File
 from .telegram_module import TelegramUser, UserProfile, UserStats
 from .admin_module import Admin
+from .chat_module import ChatMessage
 
 __all__ = [
     "Base",
@@ -11,4 +12,5 @@ __all__ = [
     "UserProfile",
     "UserStats",
     "Admin",
+    "ChatMessage",
 ]

@@ -1,0 +1,69 @@
+# chat_module
+
+Support chat between bot users and administrators. Stores the message history and is the
+**first RMQ consumer in the backend**.
+
+## Responsibility
+- `chat_message` table — flat message log; one conversation = all rows for a
+  `telegram_user_id` ordered by `created_at`/`id`.
+- Inbound text (user → backend): consume the `telegram_support_in` queue and persist
+  `direction='user'`.
+- Inbound media (user → backend): receive `POST /inbound-media` (HTTP, the bot downloaded
+  the file), upload to S3 (`file_module`) and persist `direction='user'` with `file_id`.
+- Outbound (admin → user): persist `direction='admin'` (with optional `file_id`) AND publish
+  a notification to the existing `telegram_notifications` queue (delivered by the bot's
+  `notification_module`, which downloads the file by `file_id` and sends photo/document).
+- Read APIs for the admin panel: conversation list (with unread counts), thread, mark-read.
+
+## Layout
+- `models/chat_message.py` — `ChatMessage(Base, TimestampMixin)`. Explicit
+  `__tablename__ = "chat_message"` (the `Base` convention would yield `chatmessage`).
+  Composite index `ix_chat_message_user_created (telegram_user_id, created_at)`.
+- `schemas/chat.py` — `SupportMessageRMQ` (consumer input), `ChatMessageCreate` (internal
+  CRUD), `ChatMessageRead`, `ConversationRead`, `ReplyRequest`.
+- `services/chat_service.py` — business logic (see below). `SupportUserNotFound`.
+- `services/consumer_handler.py` — `handle_support_message` + `register_consumer(...)`.
+- `handlers.py` — `APIRouter(prefix="/chat")`, all gated by `require_admin`.
+
+## RMQ contracts
+- Inbound queue `telegram_support_in` / exchange `app.events` (`direct`) / routing key
+  `telegram_support_in`. Payload = `SupportMessageRMQ` = `{telegram_id, text, tg_message_id?}`.
+- Outbound reuses `telegram_notifications` (event `telegram.notification`), payload
+  `{chat_ids:[telegram_id], message:text}` — must stay aligned with the bot's
+  `notification_module` and `telegram_module` newsletter constants.
+
+## Consumer DB session — IMPORTANT (exception to the template rule)
+The consumer runs OUTSIDE a FastAPI request, so `Depends(database.get_session)` is
+unavailable. `handle_support_message` opens a session via `database.sessionmaker()`
+directly and manages commit/rollback itself. This is the ONE sanctioned place that
+bypasses the "always use Depends" rule. Error policy:
+- `SupportUserNotFound` → rollback + log + return (message is acked, no requeue loop).
+- any other exception → rollback + raise → `RMQConsumerService` does `reject(requeue=False)`.
+
+Registration happens as an import side-effect: `chat_module/__init__.py` imports
+`services.consumer_handler`, and `app/modules/__init__.py` imports `chat_module`. The
+consumer only starts if `rabbitmq_consumer_enabled=true` and `amqp_url` is set.
+
+## Endpoints (prefix `/api/chat`)
+- `GET /conversations?search=&page=&limit=` (`require_admin`) → `ConversationRead[]` (recency
+  order; unread count via `count(*) FILTER (direction='user' AND NOT is_read)`).
+- `GET /conversations/{telegram_user_id}/messages?after_id=&limit=` (`require_admin`) →
+  `ChatMessageRead[]`. No `after_id` = last N (chronological). `after_id` set = only
+  `id > after_id` (polling). `ChatMessageRead` includes `file_id`/`file_name` for attachments.
+- `POST /conversations/{telegram_user_id}/reply` (`require_admin`) — `multipart/form-data`
+  with optional `text` + optional `file` (text OR file required) → `ChatMessageRead`. Stores
+  the file (S3) if present, creates the admin row, THEN publishes; publish failure propagates
+  so `get_session` rolls the row back.
+- `POST /conversations/{telegram_user_id}/read` (`require_admin`) → `{status, updated}`.
+- `POST /inbound-media` (`require_service`) — `multipart/form-data`: `file`, `telegram_id`,
+  optional `tg_message_id`, optional `caption`. Called by the bot when a user sends a
+  photo/document; uploads to S3 and stores `direction='user'` with `file_id`. Binary goes
+  over HTTP here (not RMQ); text still goes via the `telegram_support_in` queue.
+
+## Rules for agents
+- Keep handlers thin; logic in `services/`. Never import `aio-pika` directly — only
+  `rmq_publisher` / `register_consumer`.
+- Keep the inbound/outbound queue+event constants in sync with the bot and the spec
+  (`docs/specs/2026-06-23-support-chat-design.md`).
+- After API/model changes, run `uv run alembic revision --autogenerate` and update this
+  file + `README.md`.
