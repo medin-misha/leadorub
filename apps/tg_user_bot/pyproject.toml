@@ -10,4 +10,5 @@ dependencies = [
     "aiogram>=3.27.0",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.14.0",
+    "redis>=8.0.1",
 ]

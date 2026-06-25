@@ -110,11 +110,41 @@ class MainSettings(BaseSettings):
         ),
     )
 
+    # Redis — идемпотентность рассылки. Единый секрет redis_password из infra/.env
+    # (тот же, что использует taskiq на бэкенде). redis_url собирается ниже.
+    # Имена в нижнем регистре совпадают с infra/.env, поэтому без AliasChoices.
+    redis_host: str = "redis"
+    redis_port: int = 6379
+    redis_db: int = 0
+    redis_password: str | None = None
+    # TTL маркера «кому уже отправили» (сек). 48ч: заведомо больше окна редоставки.
+    newsletter_idempotency_ttl_seconds: int = Field(
+        default=172800,
+        ge=1,
+        validation_alias=AliasChoices(
+            "NEWSLETTER_IDEMPOTENCY_TTL_SECONDS",
+            "newsletter_idempotency_ttl_seconds",
+        ),
+    )
+
     @property
     def bot_token(self) -> str:
         """Возвращает сырой токен в формате, который нужен aiogram."""
 
         return self.token.get_secret_value()
+
+    @property
+    def redis_url(self) -> str | None:
+        """Строка подключения к Redis из единого redis_password.
+
+        None, если пароль не задан, — IdempotencyStore трактует это как
+        «дедуп выключен» (degrade, шлём без дедупа)."""
+        if not self.redis_password:
+            return None
+        return (
+            f"redis://:{self.redis_password}@"
+            f"{self.redis_host}:{self.redis_port}/{self.redis_db}"
+        )
 
 
 settings = MainSettings()
