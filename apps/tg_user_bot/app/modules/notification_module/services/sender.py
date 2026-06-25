@@ -15,6 +15,7 @@ from aiogram.types import (
 from app.core import settings
 from ..schemas import TelegramNotification
 from .backend_files import fetch_file
+from .idempotency import idempotency_store
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +87,9 @@ async def send_notification(notification: TelegramNotification) -> None:
 
 async def _broadcast_text(notification: TelegramNotification, reply_markup) -> None:
     for chat_id in notification.chat_ids:
+        # Дедуп: уже отправляли этому получателю в рамках этой рассылки — пропускаем.
+        if not await idempotency_store.claim(notification.broadcast_id, chat_id):
+            continue
         try:
             await bot.send_message(
                 chat_id=chat_id,
@@ -105,6 +109,9 @@ async def _broadcast_file(notification: TelegramNotification, reply_markup) -> N
     tg_file_id: str | None = None  # пойманный Telegram file_id для переиспользования
 
     for chat_id in notification.chat_ids:
+        # Дедуп до загрузки байтов: пропущенный получатель не «съедает» reuse file_id.
+        if not await idempotency_store.claim(notification.broadcast_id, chat_id):
+            continue
         # первый раз — байты; дальше — уже загруженный Telegram file_id
         media = tg_file_id or BufferedInputFile(
             data, filename=f"file_{notification.file_id}"
