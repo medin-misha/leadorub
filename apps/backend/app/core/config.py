@@ -69,7 +69,13 @@ class MainSettings(BaseSettings):
 
     # taskiq
     taskiq_enabled: bool = False
-    redis_url: str | None = None
+    # Redis (taskiq result backend + schedule source).
+    # Единый источник пароля — redis_password; redis_url собирается ниже (@property).
+    # Хост/порт/db по умолчанию рассчитаны на docker-сеть (имя сервиса `redis`).
+    redis_host: str = "redis"
+    redis_port: int = 6379
+    redis_db: int = 0
+    redis_password: str | None = None
     taskiq_schedule_prefix: str = "schedule"
     taskiq_debug_endpoints_enabled: bool = False
 
@@ -85,6 +91,19 @@ class MainSettings(BaseSettings):
     # Общий статический токен для server-to-server вызовов (юзер-бот → backend).
     # Если None — сервисные эндпоинты отклоняют любые запросы по X-Service-Token.
     service_token: str | None = None
+
+    @property
+    def redis_url(self) -> str | None:
+        """Строка подключения к Redis, собранная из единого redis_password.
+
+        Возвращает None, если пароль не задан, — taskiq трактует это как
+        «Redis не настроен» (сохраняем прежний контракт bool(redis_url))."""
+        if not self.redis_password:
+            return None
+        return (
+            f"redis://:{self.redis_password}@"
+            f"{self.redis_host}:{self.redis_port}/{self.redis_db}"
+        )
 
 
 settings = MainSettings()

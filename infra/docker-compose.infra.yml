@@ -39,13 +39,16 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     # appendonly — persistence: данные переживут перезапуск контейнера.
-    command: ["redis-server", "--appendonly", "yes"]
+    # requirepass — Redis закрыт паролем (единый источник — ${redis_password}).
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${redis_password}"]
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      # healthcheck тоже авторизуется, иначе ping вернёт NOAUTH и контейнер
+      # никогда не станет healthy.
+      test: ["CMD", "redis-cli", "-a", "${redis_password}", "--no-auth-warning", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
