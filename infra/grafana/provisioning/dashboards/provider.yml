@@ -1,0 +1,19 @@
+# Провайдер дашбордов: Grafana при старте грузит все *.json из указанной папки.
+# Папка примонтирована в контейнер через ./grafana/provisioning:/etc/grafana/provisioning.
+apiVersion: 1
+
+providers:
+  - name: leadorub
+    orgId: 1
+    # Папка в навигации Grafana, куда попадут дашборды.
+    folder: Leadorub
+    type: file
+    disableDeletion: false
+    # Подхватывать изменения JSON без перезапуска Grafana (каждые 10с).
+    updateIntervalSeconds: 10
+    # Разрешаем править дашборд в UI (изменения не затрут provisioning).
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/provisioning/dashboards
+      # Все дашборды в одной папке Leadorub, без вложенной структуры из файлов.
+      foldersFromFilesStructure: false
