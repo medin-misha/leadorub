@@ -286,6 +286,14 @@ from app.modules.telegram_module import TelegramUser, UserProfile, UserStats
 - `use_buttons`: `null | "INLINE" | "REPLY"`.
 - `buttons`: плоский список `{ text, url?, callback_data? }` (url/callback_data — только для INLINE).
 
+Валидация INLINE-кнопок (схема `NewsletterRequest`, зеркалит проверки админ-панели,
+чтобы битое значение не дошло до Telegram и не сорвало доставку):
+- ровно одно из `url` / `callback_data` на кнопку;
+- `url` — схема `http(s)`/`tg://`, причём для `http(s)` нужен «настоящий» домен (точка
+  и TLD ≥2 символов, либо IPv4): `https://asdasd`/`localhost` Telegram отклоняет как
+  `Wrong HTTP URL`;
+- `callback_data` — не длиннее **64 байт** в UTF-8 (а не символов).
+
 Логика: проверяем число получателей под фильтром (если 0 — `404`), грузим файл через
 `file_module`, берём `telegram_id` всех получателей, генерируем один `broadcast_id`
 (`uuid4`) и режем аудиторию на чанки по `newsletter_chunk_size` (по умолчанию 500),

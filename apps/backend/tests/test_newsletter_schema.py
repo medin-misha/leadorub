@@ -34,10 +34,81 @@ class NewsletterRequestValidationTests(unittest.TestCase):
                 "filters": {},
                 "text": "hi",
                 "use_buttons": "INLINE",
-                "buttons": [{"text": "x", "url": "http://a"}],
+                "buttons": [{"text": "x", "url": "https://example.com"}],
             }
         )
         self.assertEqual(ok.use_buttons, "INLINE")
+
+    def test_inline_button_rejects_invalid_url(self) -> None:
+        # Хост без TLD / чужая схема — Telegram отклонит («Wrong HTTP URL»).
+        bad_urls = (
+            "https://asdasd",  # одно-словный хост без точки
+            "https://localhost",  # localhost — тоже без TLD
+            "example.com",  # нет схемы
+            "ftp://example.com",  # чужая схема
+            "javascript:alert(1)",  # не http(s)/tg
+            "https://.com",  # пустая метка
+        )
+        for bad_url in bad_urls:
+            with self.assertRaises(ValidationError, msg=bad_url):
+                NewsletterRequest.model_validate(
+                    {
+                        "filters": {},
+                        "text": "hi",
+                        "use_buttons": "INLINE",
+                        "buttons": [{"text": "x", "url": bad_url}],
+                    }
+                )
+        # Нормальные ссылки проходят.
+        good_urls = (
+            "https://example.com",
+            "http://sub.example.co.uk",
+            "https://1.2.3.4",  # IPv4
+            "tg://resolve?domain=durov",  # deep-link
+        )
+        for good_url in good_urls:
+            req = NewsletterRequest.model_validate(
+                {
+                    "filters": {},
+                    "text": "hi",
+                    "use_buttons": "INLINE",
+                    "buttons": [{"text": "x", "url": good_url}],
+                }
+            )
+            self.assertEqual(req.buttons[0].url, good_url)
+
+    def test_inline_button_callback_data_byte_limit(self) -> None:
+        # Ровно 64 ASCII-байта — на границе, валидно.
+        ok = NewsletterRequest.model_validate(
+            {
+                "filters": {},
+                "text": "hi",
+                "use_buttons": "INLINE",
+                "buttons": [{"text": "x", "callback_data": "a" * 64}],
+            }
+        )
+        self.assertEqual(len(ok.buttons[0].callback_data), 64)
+        # 65 ASCII-байт — за лимитом.
+        with self.assertRaises(ValidationError):
+            NewsletterRequest.model_validate(
+                {
+                    "filters": {},
+                    "text": "hi",
+                    "use_buttons": "INLINE",
+                    "buttons": [{"text": "x", "callback_data": "a" * 65}],
+                }
+            )
+        # Кириллица: 33 символа × 2 байта = 66 байт > 64. Символов мало, но
+        # считаем именно БАЙТЫ — поэтому отклоняем.
+        with self.assertRaises(ValidationError):
+            NewsletterRequest.model_validate(
+                {
+                    "filters": {},
+                    "text": "hi",
+                    "use_buttons": "INLINE",
+                    "buttons": [{"text": "x", "callback_data": "я" * 33}],
+                }
+            )
 
     def test_buttons_require_use_buttons_and_vice_versa(self) -> None:
         with self.assertRaises(ValidationError):
@@ -63,7 +134,7 @@ class BuildPayloadTests(unittest.TestCase):
                 "filters": {"search": "ru", "field": "language_code"},
                 "text": "hello",
                 "use_buttons": "INLINE",
-                "buttons": [{"text": "Site", "url": "http://a"}],
+                "buttons": [{"text": "Site", "url": "https://example.com"}],
             }
         )
         payload = build_newsletter_payload(
@@ -77,7 +148,9 @@ class BuildPayloadTests(unittest.TestCase):
         self.assertEqual(payload["chat_ids"], [1, 2, 3])
         self.assertEqual(payload["message"], "hello")
         self.assertEqual(payload["use_buttons"], "INLINE")
-        self.assertEqual(payload["buttons"], [{"text": "Site", "url": "http://a"}])
+        self.assertEqual(
+            payload["buttons"], [{"text": "Site", "url": "https://example.com"}]
+        )
         self.assertEqual(payload["file_id"], 42)
         self.assertEqual(payload["broadcast_id"], "bcast-x")
         self.assertEqual(payload["chunk_index"], 0)

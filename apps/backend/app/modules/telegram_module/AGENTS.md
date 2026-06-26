@@ -322,6 +322,12 @@ This module should stay reusable, predictable, and centered on Telegram user ide
 `POST /telegram/newsletter` — `multipart/form-data`: `payload` (JSON string of
 `NewsletterRequest`) + optional `file` (UploadFile).
 
+`NewsletterRequest` validation (schema, mirrors the admin-panel checks so a bad value
+never reaches Telegram): each INLINE button needs exactly one of `url` / `callback_data`;
+`url` must be `http(s)`/`tg://`, and for `http(s)` a real host — a dot with a ≥2-char TLD
+(or IPv4), since `https://asdasd`/`localhost` are rejected by Telegram as `Wrong HTTP URL`;
+`callback_data` must be ≤ `CALLBACK_DATA_MAX_BYTES` (64) UTF-8 **bytes**, not characters.
+
 Flow (`services/newsletter_service.py`): validate (text OR file required) →
 `CRUD.count(TelegramUser, search, field)` (0 → 404) → upload `file` via `file_module`
 (`s3_client` + `File`) capturing `File.id` → `CRUD.get_column(TelegramUser,
