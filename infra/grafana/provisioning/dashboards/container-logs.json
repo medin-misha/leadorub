@@ -112,6 +112,44 @@
       ],
       "title": "Логи контейнеров",
       "type": "logs"
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 24 },
+      "id": 3,
+      "panels": [],
+      "title": "Логи по контейнерам",
+      "type": "row"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "${datasource}" },
+      "description": "Отдельное окно на каждый выбранный контейнер. Панель повторяется (repeat) по переменной $container: при All — по всем контейнерам, по 2 в ряд.",
+      "gridPos": { "h": 10, "w": 12, "x": 0, "y": 25 },
+      "id": 4,
+      "maxPerRow": 2,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "repeat": "container",
+      "repeatDirection": "h",
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "${datasource}" },
+          "editorMode": "code",
+          "expr": "{compose_service=\"$container\"} | detected_level=~\"$level\"",
+          "queryType": "range",
+          "refId": "A"
+        }
+      ],
+      "title": "$container",
+      "type": "logs"
     }
   ],
   "refresh": "5s",
@@ -182,6 +220,6 @@
   "timezone": "browser",
   "title": "Логи контейнеров",
   "uid": "leadorub-container-logs",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }
