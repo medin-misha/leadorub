@@ -67,9 +67,36 @@ docker network create leadorub
 ## Мониторинг логов
 
 `alloy` читает логи всех docker-контейнеров через docker-сокет и отправляет их в
-`loki`. В Grafana (http://localhost:3000) источник данных Loki подключается
-автоматически (provisioning) — открой **Explore → Loki** и фильтруй по лейблам
-`container`, `compose_service`, `compose_project`.
+`loki`. В Grafana (http://localhost:3000) источник данных Loki и дашборд логов
+подключаются автоматически (provisioning).
+
+Два способа смотреть логи:
+
+- **Дашборд «Логи контейнеров»** (папка **Leadorub**) — выбор контейнера, фильтр
+  по уровню (`info/warn/error/debug`), график объёма логов и общая лента. Ниже —
+  секция «Логи по контейнерам»: отдельное окно на каждый выбранный контейнер
+  (repeat-панель по `$container`, по 2 в ряд; при `All` — по всем). Обновляется
+  каждые 5с (автоrefresh), интервал и окно времени меняются в правом верхнем углу.
+  Файлы: `grafana/provisioning/dashboards/`.
+- **Explore → Loki** — произвольные LogQL-запросы и режим **Live** (настоящий
+  live-tail, стрим без перезапросов). Фильтры по лейблам `container`,
+  `compose_service`, `compose_project`.
+
+> **Real-time на дашборде vs Live tail.** Дашборд обновляется периодическим
+> перезапросом (автоrefresh 5с) — это «почти реальное время». Настоящий потоковый
+> live-tail есть только в **Explore → Loki → Live**: это ограничение Grafana, на
+> дашбордах режима Live нет.
+
+> **Если логи перестали идти после простоя/скачка системного времени.** Loki в
+> single-binary режиме держит кольцо ингестеров в памяти и проверяет здоровье по
+> heartbeat. При резком скачке часов кольцо «протухает», и `push` от `alloy` начинает
+> отбиваться `HTTP 500 empty ring` (видно в `docker logs <loki>`). Лечится чистым
+> перезапуском с очисткой состояния:
+> ```bash
+> docker compose -f docker-compose.infra.yml -f docker-compose.apps.yml rm -sf loki alloy
+> docker volume rm leadorub-apps_loki_data   # удаляет старые логи
+> docker compose -f docker-compose.infra.yml -f docker-compose.apps.yml up -d loki alloy
+> ```
 
 ## Нюансы
 
