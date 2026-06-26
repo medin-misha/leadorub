@@ -4,6 +4,8 @@ defineProps({
   placeholder: { type: String, default: '' },
   type: { type: String, default: 'text' },
   label: { type: String, default: '' },
+  // null → атрибут не выводится (без ограничения длины)
+  maxlength: { type: [String, Number], default: null },
 })
 defineEmits(['update:modelValue'])
 </script>
@@ -16,6 +18,7 @@ defineEmits(['update:modelValue'])
       :type="type"
       :value="modelValue"
       :placeholder="placeholder"
+      :maxlength="maxlength"
       @input="$emit('update:modelValue', $event.target.value)"
     />
   </label>

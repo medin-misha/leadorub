@@ -1,6 +1,7 @@
 <script setup>
 import { useNewsletterStore } from '@/stores/newsletter'
 import BaseInput from '@/components/ui/BaseInput.vue'
+import { CALLBACK_DATA_MAX_BYTES } from '@/constants'
 
 const store = useNewsletterStore()
 
@@ -66,7 +67,8 @@ function showCb(btn) {
         <BaseInput
           v-if="showCb(btn)"
           :model-value="btn.callback_data"
-          placeholder="callback_data"
+          :maxlength="CALLBACK_DATA_MAX_BYTES"
+          placeholder="callback_data (до 64 байт)"
           @update:model-value="store.updateButton(i, { callback_data: $event })"
         />
       </template>

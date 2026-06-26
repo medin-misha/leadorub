@@ -100,6 +100,16 @@ Compose a broadcast (text + one optional attachment) and pick an audience.
   (reply uses `text` only).
 - **Inline** requires `text` + exactly one of `url` / `callback_data` — the two inputs
   are mutually exclusive (typing in one hides the other). **Reply** needs only `text`.
+- **Inline field validation** (in `stores/newsletter.js`, enforced by `isButtonValid` /
+  `keyboardError`, so it blocks both `+ Добавить кнопку` and Send): `url` must parse via
+  the `URL` constructor with an `http:` / `https:` / `tg:` scheme (matches Bot API
+  `InlineKeyboardButton.url`); for `http(s)` the host must also be a real domain — a dot
+  with a ≥2-char TLD (or an IPv4) — because `new URL()` accepts single-label hosts like
+  `https://asdasd` that Telegram then rejects with `Wrong HTTP URL`. `callback_data` must
+  be ≤ `CALLBACK_DATA_MAX_BYTES` (64,
+  from `src/constants.js`) measured in **UTF-8 bytes** (`TextEncoder`), not characters —
+  the field also carries a soft `maxlength=64`. This is frontend-only; the backend does
+  not yet re-check URL format or callback_data length.
 - Vertical list: one button per row; `+` appends a row, disabled until the last button
   is valid (`canAddButton`). Send is blocked while `!keyboardValid` (error shown via
   `keyboardError`).
