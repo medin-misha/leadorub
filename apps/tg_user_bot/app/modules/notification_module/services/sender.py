@@ -1,8 +1,10 @@
 import asyncio
+import html
 import logging
 
 from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
+from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter
 from aiogram.types import (
     BufferedInputFile,
     InlineKeyboardButton,
@@ -27,6 +29,10 @@ bot = Bot(
 
 # Лёгкий троттлинг между отправками (Telegram ~30 msg/s на разные чаты).
 THROTTLE_SECONDS = 0.05
+
+# Сколько раз повторяем одну отправку при FloodWait (429), прежде чем сдаться.
+# Защита от бесконечного цикла, если Telegram продолжает возвращать retry_after.
+MAX_FLOOD_RETRIES = 5
 
 
 def build_markup(use_buttons, buttons):
@@ -71,6 +77,67 @@ def is_photo(content_type: str) -> bool:
     return content_type.startswith("image/")
 
 
+def escape_html(text: str | None) -> str | None:
+    """Экранирует <, >, & для parse_mode=HTML.
+
+    Бот отправляет с parse_mode=HTML, поэтому «сырые» <, >, & в тексте админа
+    Telegram трактует как разметку и при поломке молча отклоняет сообщение
+    (ошибка гасится в except ниже → получатель ничего не получает). Текст
+    считаем простым и экранируем спецсимволы. quote=False — кавычки не трогаем
+    (в теле HTML они валидны и так). None пробрасываем: подпись к файлу может
+    отсутствовать.
+    """
+    if text is None:
+        return None
+    return html.escape(text, quote=False)
+
+
+async def _send_with_retry(make_request, chat_id: int):
+    """Отправляет одно сообщение с обработкой FloodWait (429) и блокировок (403).
+
+    `make_request` — фабрика корутины отправки (например, `lambda: bot.send_message(...)`).
+    Она вызывается заново на каждую попытку, потому что уже awaited-корутину
+    переиспользовать нельзя.
+
+    Поведение по типам ошибок:
+    - `TelegramRetryAfter` (429, флуд-контроль): ждём РОВНО `retry_after` секунд и
+      повторяем. Игнорировать нельзя — иначе продолжим долбить API и поймаем
+      временный бан всего бота, а не одного получателя.
+    - `TelegramForbiddenError` (403, бота заблокировали/чат удалён): ожидаемая
+      ситуация, без стектрейса и без ретраев — этому получателю уже не доставить.
+    - прочее: логируем со стектрейсом и пропускаем получателя, чтобы рассылка
+      не падала целиком из-за одного адресата.
+
+    Возвращает `Message` при успехе или `None`, если доставить не удалось.
+    """
+    for attempt in range(1, MAX_FLOOD_RETRIES + 1):
+        try:
+            return await make_request()
+        except TelegramRetryAfter as exc:
+            logger.warning(
+                "[notification] flood limit on chat_id=%s: retry after %ss "
+                "(attempt %s/%s)",
+                chat_id,
+                exc.retry_after,
+                attempt,
+                MAX_FLOOD_RETRIES,
+            )
+            await asyncio.sleep(exc.retry_after)
+        except TelegramForbiddenError:
+            logger.info("[notification] chat_id=%s blocked the bot, skipping", chat_id)
+            return None
+        except Exception:
+            logger.exception("[notification] send failed for chat_id=%s", chat_id)
+            return None
+
+    logger.error(
+        "[notification] giving up on chat_id=%s after %s flood retries",
+        chat_id,
+        MAX_FLOOD_RETRIES,
+    )
+    return None
+
+
 async def send_notification(notification: TelegramNotification) -> None:
     """Рассылает одно уведомление по всему списку chat_ids.
 
@@ -90,16 +157,14 @@ async def _broadcast_text(notification: TelegramNotification, reply_markup) -> N
         # Дедуп: уже отправляли этому получателю в рамках этой рассылки — пропускаем.
         if not await idempotency_store.claim(notification.broadcast_id, chat_id):
             continue
-        try:
-            await bot.send_message(
+        await _send_with_retry(
+            lambda chat_id=chat_id: bot.send_message(
                 chat_id=chat_id,
-                text=notification.message or "",
+                text=escape_html(notification.message or ""),
                 reply_markup=reply_markup,
-            )
-        except Exception:
-            logger.exception(
-                "[notification] send_message failed for chat_id=%s", chat_id
-            )
+            ),
+            chat_id,
+        )
         await asyncio.sleep(THROTTLE_SECONDS)
 
 
@@ -116,25 +181,29 @@ async def _broadcast_file(notification: TelegramNotification, reply_markup) -> N
         media = tg_file_id or BufferedInputFile(
             data, filename=f"file_{notification.file_id}"
         )
-        try:
-            if photo:
-                message = await bot.send_photo(
+        if photo:
+            message = await _send_with_retry(
+                lambda media=media, chat_id=chat_id: bot.send_photo(
                     chat_id=chat_id,
                     photo=media,
-                    caption=notification.message,
+                    caption=escape_html(notification.message),
                     reply_markup=reply_markup,
-                )
-                if tg_file_id is None and message.photo:
-                    tg_file_id = message.photo[-1].file_id
-            else:
-                message = await bot.send_document(
+                ),
+                chat_id,
+            )
+            # file_id ловим только при успешной отправке (message не None).
+            if message is not None and tg_file_id is None and message.photo:
+                tg_file_id = message.photo[-1].file_id
+        else:
+            message = await _send_with_retry(
+                lambda media=media, chat_id=chat_id: bot.send_document(
                     chat_id=chat_id,
                     document=media,
-                    caption=notification.message,
+                    caption=escape_html(notification.message),
                     reply_markup=reply_markup,
-                )
-                if tg_file_id is None and message.document:
-                    tg_file_id = message.document.file_id
-        except Exception:
-            logger.exception("[notification] send file failed for chat_id=%s", chat_id)
+                ),
+                chat_id,
+            )
+            if message is not None and tg_file_id is None and message.document:
+                tg_file_id = message.document.file_id
         await asyncio.sleep(THROTTLE_SECONDS)

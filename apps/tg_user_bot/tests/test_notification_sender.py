@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from aiogram.exceptions import TelegramForbiddenError, TelegramRetryAfter
 from aiogram.types import (
     BufferedInputFile,
     InlineKeyboardMarkup,
@@ -143,4 +144,111 @@ class BroadcastTests(unittest.IsolatedAsyncioTestCase):
         # 3-й переиспользует пойманный Telegram file_id.
         self.assertEqual(
             fake_bot.send_photo.await_args_list[1].kwargs["photo"], "TG123"
+        )
+
+    async def test_flood_wait_sleeps_retry_after_and_retries(self) -> None:
+        # 429: первый вызов кидает TelegramRetryAfter(retry_after=7), второй —
+        # успех. Бот обязан подождать ровно 7с и повторить, а не пропустить.
+        flood = TelegramRetryAfter(method=MagicMock(), message="flood", retry_after=7)
+        n = TelegramNotification.model_validate({"chat_ids": [1], "message": "hi"})
+        fake_bot = MagicMock()
+        fake_bot.send_message = AsyncMock(side_effect=[flood, None])
+        sleep_mock = AsyncMock()
+        with (
+            patch.object(sender, "bot", fake_bot),
+            patch.object(
+                sender.idempotency_store, "claim", AsyncMock(return_value=True)
+            ),
+            patch("asyncio.sleep", sleep_mock),
+        ):
+            await sender.send_notification(n)
+        # ретрай состоялся → ровно 2 попытки отправки
+        self.assertEqual(fake_bot.send_message.await_count, 2)
+        # спали именно столько, сколько просил Telegram (7с присутствует в вызовах sleep)
+        slept_for = [call.args[0] for call in sleep_mock.await_args_list]
+        self.assertIn(7, slept_for)
+
+    async def test_flood_wait_gives_up_after_max_retries(self) -> None:
+        # Telegram упорно отдаёт 429 — не должны зацикливаться: ровно
+        # MAX_FLOOD_RETRIES попыток и выходим, рассылка не виснет.
+        flood = TelegramRetryAfter(method=MagicMock(), message="flood", retry_after=1)
+        n = TelegramNotification.model_validate({"chat_ids": [1], "message": "hi"})
+        fake_bot = MagicMock()
+        fake_bot.send_message = AsyncMock(side_effect=flood)
+        with (
+            patch.object(sender, "bot", fake_bot),
+            patch.object(
+                sender.idempotency_store, "claim", AsyncMock(return_value=True)
+            ),
+            patch("asyncio.sleep", AsyncMock()),
+        ):
+            await sender.send_notification(n)
+        self.assertEqual(fake_bot.send_message.await_count, sender.MAX_FLOOD_RETRIES)
+
+    async def test_forbidden_skips_recipient_without_retry(self) -> None:
+        # 403: получатель заблокировал бота. Не ретраим его и не валим рассылку —
+        # переходим к следующему адресату.
+        forbidden = TelegramForbiddenError(
+            method=MagicMock(), message="bot was blocked by the user"
+        )
+        n = TelegramNotification.model_validate({"chat_ids": [1, 2], "message": "hi"})
+        fake_bot = MagicMock()
+        fake_bot.send_message = AsyncMock(side_effect=[forbidden, None])
+        with (
+            patch.object(sender, "bot", fake_bot),
+            patch.object(
+                sender.idempotency_store, "claim", AsyncMock(return_value=True)
+            ),
+            patch("asyncio.sleep", AsyncMock()),
+        ):
+            await sender.send_notification(n)
+        # 403 не ретраится: по одному вызову на каждого, рассылка дошла до 2-го
+        self.assertEqual(fake_bot.send_message.await_count, 2)
+        sent_to = [
+            call.kwargs["chat_id"] for call in fake_bot.send_message.await_args_list
+        ]
+        self.assertEqual(sent_to, [1, 2])
+
+    async def test_text_broadcast_escapes_html(self) -> None:
+        # <, >, & в простом тексте экранируются — иначе Telegram (parse_mode=HTML)
+        # молча отклонит сообщение как «битую разметку».
+        n = TelegramNotification.model_validate(
+            {"chat_ids": [1], "message": "a < b & c >"}
+        )
+        fake_bot = MagicMock()
+        fake_bot.send_message = AsyncMock()
+        with (
+            patch.object(sender, "bot", fake_bot),
+            patch.object(
+                sender.idempotency_store, "claim", AsyncMock(return_value=True)
+            ),
+            patch("asyncio.sleep", AsyncMock()),
+        ):
+            await sender.send_notification(n)
+        self.assertEqual(
+            fake_bot.send_message.await_args.kwargs["text"], "a &lt; b &amp; c &gt;"
+        )
+
+    async def test_file_caption_escapes_html(self) -> None:
+        # То же для подписи к файлу: caption тоже уходит в HTML-режиме.
+        n = TelegramNotification.model_validate(
+            {"chat_ids": [1], "message": "x & <b>", "file_id": 9}
+        )
+        first_msg = MagicMock()
+        first_msg.photo = [MagicMock(file_id="TG123")]
+        fake_bot = MagicMock()
+        fake_bot.send_photo = AsyncMock(return_value=first_msg)
+        with (
+            patch.object(sender, "bot", fake_bot),
+            patch.object(
+                sender.idempotency_store, "claim", AsyncMock(return_value=True)
+            ),
+            patch.object(
+                sender, "fetch_file", AsyncMock(return_value=(b"x", "image/png"))
+            ),
+            patch("asyncio.sleep", AsyncMock()),
+        ):
+            await sender.send_notification(n)
+        self.assertEqual(
+            fake_bot.send_photo.await_args.kwargs["caption"], "x &amp; &lt;b&gt;"
         )

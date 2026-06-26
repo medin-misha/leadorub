@@ -20,7 +20,45 @@ This module is dependency-driven:
 - `broadcast_id: str|None` — shared id of all chunks of one broadcast; the dedup key (`IdempotencyStore.claim`, Redis `SET NX`). `None` = dedup off (old message during rolling deploy / degrade).
 - `chunk_index: int|None`, `chunk_total: int|None` — chunking diagnostics for logs.
 
-Sender: `services/sender.py` (`build_markup`, `is_photo`, `send_notification`). File resolver: `services/backend_files.py` — sends the `X-Service-Token` header (`SERVICE_TOKEN`) because backend gates `GET /api/files/{id}` with `require_admin_or_service`; without it the download is `401`. Consumer wiring (`consumer_handler.py`, queue `telegram_notifications`) is unchanged.
+Sender: `services/sender.py` (`build_markup`, `is_photo`, `escape_html`, `_send_with_retry`, `send_notification`). File resolver: `services/backend_files.py` — sends the `X-Service-Token` header (`SERVICE_TOKEN`) because backend gates `GET /api/files/{id}` with `require_admin_or_service`; without it the download is `401`. Consumer wiring (`consumer_handler.py`, queue `telegram_notifications`) is unchanged.
+
+## Send error handling (`_send_with_retry`)
+
+Every send (`send_message` / `send_photo` / `send_document`) goes through
+`_send_with_retry(make_request, chat_id)`, which dispatches on the aiogram error type
+per recipient. `make_request` is a coroutine factory (re-called each attempt — an
+already-awaited coroutine cannot be reused). It returns the `Message` on success or
+`None` when the recipient could not be reached.
+
+- `TelegramRetryAfter` (429, flood control): sleep EXACTLY `exc.retry_after` and retry,
+  up to `MAX_FLOOD_RETRIES` (default 5). Ignoring 429 and hammering on gets the WHOLE
+  bot temporarily banned, not just one recipient — so this is mandatory, not optional.
+- `TelegramForbiddenError` (403, user blocked the bot / chat deleted): log at info (no
+  stack trace — it is expected), no retry, move to the next recipient.
+- Any other exception: `logger.exception` (stack trace) and skip the recipient so one
+  bad address never aborts the whole broadcast.
+
+In `_broadcast_file` the returned `Message` is also how the reusable Telegram `file_id`
+is captured — only when the send actually succeeds (`message is not None`).
+
+TODO (cross-service, not yet wired): on 403 the user should be marked `is_blocket_bot`
+in the backend so future broadcasts skip them. There is no service-auth channel for
+that today — the `PATCH /telegram/users/{id}` endpoint is `require_admin` and is keyed
+by internal `id`, while the bot only holds `telegram_id`.
+
+## HTML escaping (plain-text safety)
+
+The bot sends with `parse_mode=HTML` (`DefaultBotProperties`). Admin-authored text
+(newsletter + chat replies, both routed through this queue) is treated as **plain
+text**: `escape_html` (`services/sender.py`, stdlib `html.escape(..., quote=False)`)
+escapes `<`, `>`, `&` in `message` right before it becomes `text=` / `caption=`.
+Without this, stray `<`/`>`/`&` ("M&M's", `1 < 2`, an unclosed tag) make Telegram
+reject the message with `can't parse entities`; the error is swallowed by the
+`except` in the send loop, so the recipient silently gets nothing. Button labels are
+NOT escaped — Telegram does not HTML-parse them. Escaping is intentionally NOT done
+in the backend: it is parse_mode-specific, so it lives next to the bot that owns the
+parse mode. Known minor limitation: the backend's 1024 length check sees the RAW
+text, so a caption packed with special chars could still overflow once escaped.
 
 ## Idempotency (newsletter dedup)
 
