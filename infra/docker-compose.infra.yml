@@ -161,6 +161,8 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
       # Отключаем анонимную телеметрию и установку плагинов наружу в dev.
       GF_ANALYTICS_REPORTING_ENABLED: "false"
+      # Внешний URL за reverse-proxy — иначе редиректы и абсолютные ссылки ломаются.
+      GF_SERVER_ROOT_URL: https://grafana.${PUBLIC_HOST}
     ports:
       - "3000:3000"
     volumes:
@@ -168,6 +170,31 @@ services:
       - grafana_data:/var/lib/grafana
     depends_on:
       - loki
+    networks:
+      - leadorub
+
+  # --------------------------------------------------------------------------
+  # Caddy — edge reverse proxy. Единственный сервис, открытый наружу (80/443).
+  # Терминирует HTTPS (Let's Encrypt через sslip.io) и проксирует по хостнейму
+  # на внутренние сервисы. PUBLIC_HOST (<IP>.sslip.io) берётся из infra/.env и
+  # пробрасывается в контейнер — Caddyfile читает его как {$PUBLIC_HOST}.
+  # depends_on не указываем намеренно: reverse_proxy сам ретраит апстримы,
+  # пока они поднимаются (вернёт 502 до готовности), а admin_miniapp вообще из
+  # другого compose-файла — зависимость между файлами невозможна.
+  # --------------------------------------------------------------------------
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3 (QUIC)
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data       # сертификаты — переживают рестарт
+      - caddy_config:/config
     networks:
       - leadorub
 
@@ -181,6 +208,8 @@ volumes:
   minio_data:
   loki_data:
   grafana_data:
+  caddy_data:
+  caddy_config:
 
 # ----------------------------------------------------------------------------
 # Общая сеть для infra и apps. Создаётся этим файлом с фиксированным именем,
