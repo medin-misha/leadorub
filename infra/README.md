@@ -64,6 +64,36 @@ docker compose -f docker-compose.infra.yml down -v
 docker network create leadorub
 ```
 
+## Edge-Caddy и HTTPS (sslip.io)
+
+Внешний трафик идёт через edge-Caddy — единственный сервис, открытый наружу
+(порты 80/443). Он терминирует HTTPS и по хостнейму проксирует на внутренние
+сервисы. Сертификаты Let's Encrypt Caddy получает и обновляет сам.
+
+Домен не нужен — используем sslip.io: хостнейм с IP внутри резолвится в этот
+IP, причём поддомены тоже (`grafana.<IP>.sslip.io` → `<IP>`).
+
+**Настройка:** в `infra/.env` задай `PUBLIC_HOST=<белый-IP>.sslip.io`.
+
+**Хостнеймы после запуска:**
+
+| Сервис | URL |
+|---|---|
+| Админ-панель | `https://<IP>.sslip.io` |
+| Grafana | `https://grafana.<IP>.sslip.io` |
+| MinIO консоль | `https://minio.<IP>.sslip.io` |
+| RabbitMQ UI | `https://rabbitmq.<IP>.sslip.io` |
+
+**Требования:** публичный IP, открытые порты 80/443 (нужны Let's Encrypt для
+ACME-challenge). Сертификаты лежат в volume `caddy_data` — не удаляй его, иначе
+Caddy будет перевыпускать сертификаты и может упереться в rate limits.
+
+> ⚠️ Прямые HTTP-порты сервисов (Grafana 3000, MinIO 9001, RabbitMQ 15672,
+> backend 8000, admin 8080) сейчас остаются опубликованными — при заходе по ним
+> напрямую пароли идут открытым текстом. Когда понадобится закрыть: смени их
+> публикацию на `127.0.0.1:PORT:PORT` (edge-Caddy достучится по внутренней сети),
+> снаружи останется только HTTPS.
+
 ## Мониторинг логов
 
 `alloy` читает логи всех docker-контейнеров через docker-сокет и отправляет их в
