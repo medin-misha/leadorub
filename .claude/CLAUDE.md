@@ -41,6 +41,29 @@
 docker compose -f infra/docker-compose.infra.yml -f infra/docker-compose.apps.yml up --build -d
 ```
 
+## Деплой
+
+Прод-деплой — на сервер с публичным статическим IP. Снаружи всё закрыто HTTPS
+через edge-Caddy (сервис `caddy` в `infra/docker-compose.infra.yml`): он
+единственный торчит наружу (порты 80/443), терминирует TLS и проксирует запросы
+на внутренние сервисы по docker-сети. Домен покупать не нужно — используем
+sslip.io: хостнейм с IP внутри резолвится в этот IP (включая поддомены).
+
+Шаги:
+1. В `infra/.env` задать `PUBLIC_HOST=<белый-IP>.sslip.io`.
+2. Открыть на сервере порты 80 и 443 — нужны Let's Encrypt для ACME-challenge.
+3. Поднять стек той же командой, что и при локальном запуске (см. «Запуск»).
+   Caddy сам выпустит и будет обновлять TLS-сертификаты; они хранятся в volume
+   `caddy_data` (не удалять — иначе перевыпуск и риск упереться в rate limits).
+
+Адреса сервисов после старта:
+- Админ-панель — `https://<IP>.sslip.io`
+- Grafana — `https://grafana.<IP>.sslip.io`
+- MinIO консоль — `https://minio.<IP>.sslip.io`
+- RabbitMQ UI — `https://rabbitmq.<IP>.sslip.io`
+
+Подробности и нюансы — в `infra/README.md`.
+
 ## Правила
 1. Ты не можешь менять `.claude/CLAUDE.md` и `README.md` в корне проекта не посоветывавшись зарание со мной
 2. После написания кода который как либо меняет логику API, или добавляет новый функционал, синхронизируй новый функционал с `apps/<module>/.claude/CLAUDE.md` а так же `apps/<module>/README.md`. CLAUDE.md каждого отдельного сервиса можешь менять самостоятельно
