@@ -83,6 +83,9 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      # Внешний URL консоли за edge-Caddy. Раскомментируй, если консоль на
+      # поддомене minio.<IP>.sslip.io редиректит после логина не туда.
+      # MINIO_BROWSER_REDIRECT_URL: https://minio.${PUBLIC_HOST}
     ports:
       - "9001:9001"  # консоль
     volumes:
