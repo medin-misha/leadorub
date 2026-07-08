@@ -29,7 +29,7 @@ function fmtDate(iso) {
         </tr>
       </thead>
       <tbody>
-        <tr v-for="u in items" :key="u.id">
+        <tr v-for="u in items" :key="u.id" class="table__row">
           <td>{{ u.id }}</td>
           <td>{{ u.telegram_id }}</td>
           <td>{{ u.username || '—' }}</td>
@@ -76,9 +76,22 @@ function fmtDate(iso) {
   font-size: 13px;
   color: var(--color-text-muted);
 }
+.table__row {
+  transition: background-color 0.15s ease;
+}
+.table__row:hover {
+  background-color: var(--color-bg);
+}
 .table__actions {
   display: flex;
   gap: var(--space-2);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease-in-out;
+}
+.table__row:hover .table__actions {
+  opacity: 1;
+  pointer-events: auto;
 }
 .table__empty {
   text-align: center;
