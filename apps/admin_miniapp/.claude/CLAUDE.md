@@ -166,9 +166,10 @@ the admin sees conversations here and replies on behalf of the bot.
 
 - `views/ChatView.vue` — two panes: `ConversationList` (left) + active thread
   (`ChatThread` + `ChatComposer`) on the right. `onMounted` starts polling;
-  `onUnmounted` stops ALL intervals (leak-free).
+  `onUnmounted` stops ALL intervals (leak-free). Supports the `userId` query parameter
+  to automatically initialize a chat with a specific user.
 - `components/chat/` — `ConversationList` (unread badge + last-message preview, `📎 Вложение`
-  for media), `ChatThread` (auto-scroll to bottom), `MessageBubble` (admin right / user
+  for media, and `Начать диалог` for uninitialized conversations), `ChatThread` (auto-scroll to bottom), `MessageBubble` (admin right / user
   left), `ChatComposer` (textarea + `BaseFileInput`, Enter to send, Shift+Enter newline),
   `MediaAttachment` (fetches the attachment as a blob via `GET /files/{id}` so the auth
   header is sent, then shows an image preview or a download link). The `isImage` regex
@@ -178,10 +179,10 @@ the admin sees conversations here and replies on behalf of the bot.
   with `nosniff` (defense-in-depth).
 - `stores/chat.js` — Pinia store: `conversations`, `activeUid`, `messages`, `search`;
   actions `fetchConversations`/`setSearch`/`openConversation`/`fetchMessages`/
-  `sendReply(text, file)`/`markRead` and the polling lifecycle (`startListPolling`/
+  `sendReply(text, file)`/`markRead`/`initializeAndOpenConversation` and the polling lifecycle (`startListPolling`/
   `startThreadPolling`/`stopAllPolling`). **Polling:** open thread every ~4 s (incremental
   `after_id` fetch with id dedupe + `_inFlight` guard), conversation list every ~10 s.
-  Switching conversation stops the previous thread interval first.
+  Switching conversation stops the previous thread interval first. If a conversation with `activeUid` does not exist on the backend yet, it is preserved in the UI's local list as a placeholder and sent normally on first message.
 - `api/chat.js` — `listConversations`, `getMessages(uid,{after_id,limit})`,
   `reply(uid,{text,file})` (multipart), `markRead(uid)`, `fileObjectUrl(fileId)` against
   `/api/chat/*` (`require_admin`).

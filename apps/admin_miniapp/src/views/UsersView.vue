@@ -1,5 +1,6 @@
 <script setup>
 import { onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useUsersStore } from '@/stores/users'
 import UserSearchBar from '@/components/users/UserSearchBar.vue'
 import UsersTable from '@/components/users/UsersTable.vue'
@@ -15,10 +16,16 @@ const editing = ref(null)
 const deleting = ref(null)
 const creating = ref(false)
 
+const router = useRouter()
+
 onMounted(() => store.fetchUsers())
 
 function onSearch({ search, field }) {
   store.setSearch({ search, field })
+}
+
+function onChat(user) {
+  router.push({ name: 'chat', query: { userId: user.id } })
 }
 </script>
 
@@ -36,6 +43,7 @@ function onSearch({ search, field }) {
       :loading="store.loading"
       @edit="editing = $event"
       @delete="deleting = $event"
+      @chat="onChat"
     />
 
     <div class="users__footer">

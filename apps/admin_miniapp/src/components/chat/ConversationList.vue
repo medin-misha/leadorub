@@ -16,6 +16,9 @@ function title(c) {
 // Превью последнего сообщения; ответы администратора помечаем «Вы: ».
 // Пустой текст означает сообщение-вложение (текста нет → был файл).
 function preview(c) {
+  if (!c.last_direction && !c.last_text) {
+    return 'Начать диалог'
+  }
   const prefix = c.last_direction === 'admin' ? 'Вы: ' : ''
   return prefix + (c.last_text || '📎 Вложение')
 }

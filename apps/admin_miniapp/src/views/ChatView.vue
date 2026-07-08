@@ -1,5 +1,6 @@
 <script setup>
 import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useChatStore } from '@/stores/chat'
 import BaseInput from '@/components/ui/BaseInput.vue'
@@ -10,6 +11,8 @@ import ChatComposer from '@/components/chat/ChatComposer.vue'
 const store = useChatStore()
 const { conversations, activeUid, messages, loadingThread, sending, error } =
   storeToRefs(store)
+
+const route = useRoute()
 
 // Поиск по диалогам с debounce, чтобы не дёргать backend на каждый символ.
 const search = ref('')
@@ -34,10 +37,27 @@ function activeTitle() {
   return 'ID ' + c.telegram_id
 }
 
-onMounted(() => {
-  store.fetchConversations()
+onMounted(async () => {
+  await store.fetchConversations()
   store.startListPolling()
+
+  const userId = parseInt(route.query.userId, 10)
+  if (!isNaN(userId)) {
+    await store.initializeAndOpenConversation(userId)
+  }
 })
+
+watch(
+  () => route.query.userId,
+  async (newVal) => {
+    if (newVal) {
+      const userId = parseInt(newVal, 10)
+      if (!isNaN(userId)) {
+        await store.initializeAndOpenConversation(userId)
+      }
+    }
+  }
+)
 
 // Критично: гасим все интервалы при уходе с вкладки, иначе они утекут.
 onUnmounted(() => {

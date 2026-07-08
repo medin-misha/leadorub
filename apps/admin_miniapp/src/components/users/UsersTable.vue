@@ -5,7 +5,7 @@ defineProps({
   items: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
 })
-defineEmits(['edit', 'delete'])
+defineEmits(['edit', 'delete', 'chat'])
 
 function fmtDate(iso) {
   if (!iso) return '—'
@@ -38,6 +38,7 @@ function fmtDate(iso) {
           <td>{{ u.is_blocket_bot ? 'да' : 'нет' }}</td>
           <td>{{ fmtDate(u.created_at) }}</td>
           <td class="table__actions">
+            <BaseButton variant="primary" @click="$emit('chat', u)">Чат</BaseButton>
             <BaseButton variant="ghost" @click="$emit('edit', u)">Изменить</BaseButton>
             <BaseButton variant="danger" @click="$emit('delete', u)">Удалить</BaseButton>
           </td>

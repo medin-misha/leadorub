@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { chatApi } from '@/api/chat'
+import { usersApi } from '@/api/users'
 import { extractError } from '@/api/http'
 
 // Интервалы polling. Список диалогов опрашиваем реже, открытый тред — чаще.
@@ -42,11 +43,23 @@ export const useChatStore = defineStore('chat', {
     async fetchConversations() {
       this.loadingList = true
       try {
-        this.conversations = await chatApi.listConversations({
+        const list = await chatApi.listConversations({
           search: this.search || null,
         })
+        
+        // Сохраняем диалог-заглушку в списке, если он активен, но его еще нет на бэкенде
+        if (this.activeUid != null && !list.some((c) => c.telegram_user_id === this.activeUid)) {
+          const activeConv = this.conversations.find((c) => c.telegram_user_id === this.activeUid)
+          if (activeConv) {
+            list.unshift(activeConv)
+          }
+        }
+        
+        this.conversations = list
+        return list
       } catch (err) {
         this.error = extractError(err)
+        throw err
       } finally {
         this.loadingList = false
       }
@@ -55,6 +68,39 @@ export const useChatStore = defineStore('chat', {
     async setSearch(value) {
       this.search = value ?? ''
       await this.fetchConversations()
+    },
+
+    async initializeAndOpenConversation(uid) {
+      if (!this.conversations.length && !this.loadingList) {
+        await this.fetchConversations()
+      }
+
+      let conv = this.conversations.find((c) => c.telegram_user_id === uid)
+      if (conv) {
+        await this.openConversation(uid)
+        return
+      }
+
+      try {
+        const user = await usersApi.get(uid)
+        if (user) {
+          conv = {
+            telegram_user_id: user.id,
+            telegram_id: user.telegram_id,
+            username: user.username,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            last_text: null,
+            last_at: null,
+            last_direction: null,
+            unread_count: 0,
+          }
+          this.conversations.unshift(conv)
+          await this.openConversation(uid)
+        }
+      } catch (err) {
+        this.error = extractError(err)
+      }
     },
 
     async openConversation(uid) {
