@@ -9,6 +9,7 @@ from app.modules.taskiq_module.config import taskiq_settings
 from app.modules.taskiq_module.handlers import router as taskiq_router
 from app.modules.telegram_module.handlers import router as tg_router
 from app.modules.chat_module.handlers import router as chat_router
+from app.modules.requisition.handlers import router as requisition_router
 
 try:
     from app.modules.telegram_notification_module.handlers import (
@@ -37,6 +38,9 @@ router.include_router(tg_router)
 
 # чат поддержки (admin ↔ user)
 router.include_router(chat_router)
+
+# заявки (requisition)
+router.include_router(requisition_router)
 
 # telegram notification test router is registered if debug is True and the router is available
 if settings.debug and tg_notif_router is not None:
