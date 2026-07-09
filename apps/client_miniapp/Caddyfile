@@ -1,0 +1,14 @@
+:80 {
+	root * /srv
+	encode gzip
+
+	# API проксируем на backend в той же docker-сети (один origin → нет CORS).
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		try_files {path} /index.html
+		file_server
+	}
+}
