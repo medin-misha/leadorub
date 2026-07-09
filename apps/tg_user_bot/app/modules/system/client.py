@@ -16,6 +16,8 @@ from aiohttp import ClientError, ClientResponse, ClientSession, ClientTimeout
 
 from .config import system_settings
 from .schemas import (
+    RequisitionCreatePayload,
+    RequisitionRead,
     TelegramUserCreatePayload,
     TelegramUserLoginPayload,
     TelegramUserRead,
@@ -75,6 +77,26 @@ class BackendClient:
             json_payload=payload.model_dump(mode="json", exclude_none=True),
         )
         return TelegramUserRead.model_validate(response_data)
+
+    async def create_requisition(
+        self,
+        telegram_id: int,
+        type_: str,
+        payload: dict,
+    ) -> RequisitionRead:
+        """Отправляет заявку пользователя на бэкенд."""
+
+        req_payload = RequisitionCreatePayload(
+            telegram_id=telegram_id,
+            type=type_,
+            payload=payload,
+        )
+        response_data = await self._request(
+            method="POST",
+            path="/requisitions",
+            json_payload=req_payload.model_dump(mode="json"),
+        )
+        return RequisitionRead.model_validate(response_data)
 
     async def _request(
         self,

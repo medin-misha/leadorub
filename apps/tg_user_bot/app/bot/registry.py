@@ -9,6 +9,7 @@ from aiogram import Dispatcher
 
 from app.modules.rmq_module.handlers import router as rmq_router
 from app.modules.system.handlers import router as system_router
+from app.modules.requisition_module.handlers import router as requisition_router
 
 try:
     from app.modules.notification_module.handlers import router as notification_router
@@ -32,3 +33,4 @@ def register_routers(dispatcher: Dispatcher) -> None:
         dispatcher.include_router(notification_router)
     if support_router is not None:
         dispatcher.include_router(support_router)
+    dispatcher.include_router(requisition_router)

@@ -106,3 +106,26 @@ class TelegramUserRead(BaseModel):
     updated_at: datetime
     user_profile: UserProfileRead | None = None
     user_stats: UserStatsRead | None = None
+
+
+class RequisitionCreatePayload(BaseModel):
+    """Payload для создания новой заявки через backend."""
+
+    telegram_id: int
+    type: str
+    payload: dict
+
+
+class RequisitionRead(BaseModel):
+    """Схема чтения данных заявки, возвращаемых backend."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: int
+    telegram_user_id: int
+    type: str
+    status: str
+    payload: dict
+    admin_comment: str | None = None
+    created_at: datetime
+    updated_at: datetime
