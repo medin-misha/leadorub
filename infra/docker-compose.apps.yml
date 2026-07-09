@@ -46,6 +46,7 @@ services:
     environment:
       TOKEN: ${user_bot}
       BACKEND_URL: http://backend:8000/
+      CLIENT_MINIAPP_URL: ${CLIENT_MINIAPP_URL}
     depends_on:
       - backend
     networks:
@@ -64,6 +65,19 @@ services:
       - "8080:80"
     depends_on:
       - backend
+    networks:
+      - leadorub
+
+  # --------------------------------------------------------------------------
+  # Client MiniApp — Vue SPA (форма записи). Caddy раздаёт собранную статику.
+  # Доступна на http://localhost:8081.
+  # --------------------------------------------------------------------------
+  client_miniapp:
+    build:
+      context: ../apps/client_miniapp
+    restart: unless-stopped
+    ports:
+      - "8081:80"
     networks:
       - leadorub
 

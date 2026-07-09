@@ -103,6 +103,44 @@ async def create_requisition(
         )
         raise
 
+    # Если заявка пришла из Mini App, отправляем мгновенное уведомление в бот
+    if data.payload.get("source") == "miniapp":
+        type_ru = {
+            "consultation": "Консультация",
+            "community": "Вступление в сообщество",
+        }.get(requisition.type, requisition.type)
+        
+        user_msg = f"🎉 Ваша заявка на '{type_ru}' успешно отправлена и ожидает рассмотрения!"
+        
+        notification_payload = {
+            "chat_ids": [user.telegram_id],
+            "message": user_msg,
+            "use_buttons": None,
+            "buttons": None,
+            "file_id": None,
+        }
+        
+        try:
+            await rmq_publisher.publish(
+                event=NOTIFICATION_EVENT,
+                payload=notification_payload,
+                queue_name=NOTIFICATION_QUEUE,
+                routing_key=NOTIFICATION_QUEUE,
+                exchange_name=NOTIFICATION_EXCHANGE,
+                exchange_type=NOTIFICATION_EXCHANGE_TYPE,
+            )
+            logger.info(
+                "Опубликовано уведомление пользователю telegram_id=%s о создании заявки из Mini App",
+                user.telegram_id,
+            )
+        except Exception as exc:
+            # Ошибка отправки уведомления пользователю не должна ломать создание заявки
+            logger.warning(
+                "Не удалось отправить уведомление о создании заявки id=%s: %s",
+                requisition.id,
+                exc,
+            )
+
     return requisition
 
 

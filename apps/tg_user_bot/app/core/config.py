@@ -46,6 +46,10 @@ class MainSettings(BaseSettings):
         default=1000, validation_alias="AUTH_CACHE_MAX_SIZE"
     )
     bot_parse_mode: str = Field(default="HTML", validation_alias="BOT_PARSE_MODE")
+    client_miniapp_url: str = Field(
+        default="http://localhost:8081",
+        validation_alias=AliasChoices("CLIENT_MINIAPP_URL", "client_miniapp_url"),
+    )
     amqp_url: str | None = Field(
         default=None,
         validation_alias=AliasChoices("AMQP_URL", "amqp_url"),

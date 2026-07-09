@@ -96,6 +96,8 @@ class MainSettings(BaseSettings):
     # Общий статический токен для server-to-server вызовов (юзер-бот → backend).
     # Если None — сервисные эндпоинты отклоняют любые запросы по X-Service-Token.
     service_token: str | None = None
+    # Токен бота для валидации Telegram initData
+    user_bot: str | None = None
 
     @property
     def redis_url(self) -> str | None:

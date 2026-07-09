@@ -19,6 +19,11 @@
 	reverse_proxy admin_miniapp:80
 }
 
+# Клиентское приложение (Mini App) для записи
+app.{$PUBLIC_HOST} {
+	reverse_proxy client_miniapp:80
+}
+
 # Grafana — дашборды и просмотр логов.
 grafana.{$PUBLIC_HOST} {
 	reverse_proxy grafana:3000
