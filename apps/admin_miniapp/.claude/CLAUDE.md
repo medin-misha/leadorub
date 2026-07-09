@@ -35,12 +35,9 @@ Nothing else changes.
 ### Layers
 
 - `src/api/` — Axios layer. `http.js` exports the configured instance + `extractError`
-  (pulls the backend `detail` message). `users.js` / `profiles.js` / `stats.js` wrap
+  (pulls the backend `detail` message). `users.js` / `profiles.js` / `stats.js` / `requisitions.js` wrap
   the endpoints. Keep raw HTTP here, not in components/stores.
-- `src/stores/users.js` — Pinia store for the Users tab. Holds list + pagination +
-  search state and exposes actions (`fetchUsers`, `setSearch`, `setPage`, `setLimit`,
-  `createUser`, `updateUser`, `deleteUser`, `createProfile`/`updateProfile`,
-  `createStats`/`updateStats`).
+- `src/stores/` — Pinia stores. `users.js` for Users tab, `requisitions.js` for Requisitions tab, etc.
 - `src/components/ui/` — reusable primitives (`BaseButton`, `BaseInput`, `BaseSelect`,
   `BaseModal`, `Pagination`, `Placeholder`).
 - `src/components/users/` — Users-tab feature components (search bar, table, edit /
@@ -56,6 +53,11 @@ Router prefix `/api/telegram`:
   `PATCH /users/{id}`, `DELETE /users/{id}` → `{ status }`.
 - `PATCH /profile/{id}`, `POST /profile` (needs `telegram_user_id`).
 - `PATCH /stats/{id}`, `POST /stats` (needs `telegram_user_id`).
+
+Router prefix `/api/requisitions`:
+- `GET /requisitions?page=&limit=&search=&status=&type=` → `RequisitionRead[]`
+- `GET /requisitions/{id}` → `RequisitionRead`
+- `PATCH /requisitions/{id}/status` → `RequisitionRead` (receives `{ status, admin_comment }`)
 
 Search semantics: `search` alone = full-text contains over string columns; `search`
 + `field` = that column only (string = contains, others = exact, parsed by type).
@@ -190,6 +192,14 @@ the admin sees conversations here and replies on behalf of the bot.
 Media in the support chat = photos & documents (≤10 MB); the bot uploads inbound media to
 the backend over HTTP. Real-time is polling by design (no WebSocket/SSE infra). See the
 end-to-end design in `docs/specs/2026-06-23-support-chat-design.md`.
+
+## Requisitions tab
+
+Manage and process user applications.
+- `views/RequisitionsView.vue` — main view with filters (search, status, type), a table with hover actions, and a details modal.
+- `stores/requisitions.js` — Pinia store holding items, page, limit, search, status, type, and loading/error states.
+- `api/requisitions.js` — wraps endpoints.
+- Integration: "Open chat" button routes to the Chat tab via router query parameters.
 
 ## Out of scope
 
