@@ -30,6 +30,12 @@ services:
       # репозитория (entrypoint делает `alembic upgrade head` при старте).
       # Новую миграцию создаёшь на хосте — после рестарта backend её накатит.
       - ../apps/backend/alembic/versions:/app/alembic/versions
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/system/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
     networks:
       - leadorub
 
@@ -78,6 +84,11 @@ services:
     restart: unless-stopped
     ports:
       - "8081:80"
+    environment:
+      SERVICE_TOKEN: ${service_token}
+    depends_on:
+      backend:
+        condition: service_healthy
     networks:
       - leadorub
 

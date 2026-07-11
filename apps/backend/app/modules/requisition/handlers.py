@@ -1,6 +1,7 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status, Header, HTTPException
+from fastapi import APIRouter, Depends, Query, status
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import database
@@ -36,9 +37,6 @@ async def create_requisition(
     """
     return await create_requisition_service(data=data, session=session)
 
-
-from pydantic import BaseModel, Field
-
 class RequisitionPublicCreate(BaseModel):
     telegram_id: int = Field(..., description="ID пользователя в Telegram")
     type: str = Field("consultation", description="Тип заявки")
@@ -46,37 +44,18 @@ class RequisitionPublicCreate(BaseModel):
     phone: str = Field(..., description="Телефон клиента")
     description: str | None = Field(None, description="Описание проблемы")
 
+
 @router.post(
     "/public",
     response_model=RequisitionRead,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_service)],
 )
 async def create_public_requisition(
     data: RequisitionPublicCreate,
     session: SessionDep,
-    x_telegram_init_data: Annotated[str | None, Header()] = None,
 ) -> Requisition:
-    """Создание заявки напрямую из клиентского Mini App с проверкой Telegram initData."""
-    from app.core.config import settings
-    from app.modules.telegram_module.utils import validate_telegram_init_data
-
-    # В режиме debug при отсутствии initData разрешаем тестовую запись
-    is_valid = False
-    if settings.debug and not x_telegram_init_data:
-        is_valid = True
-    else:
-        # Валидируем initData с помощью токена бота
-        is_valid = validate_telegram_init_data(
-            init_data=x_telegram_init_data,
-            bot_token=settings.user_bot or "",
-        )
-
-    if not is_valid:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Невалидные данные авторизации Telegram (initData).",
-        )
-
+    """Создание заявки из Client Mini App через доверенный Caddy-прокси."""
     requisition_data = RequisitionCreate(
         telegram_id=data.telegram_id,
         type=data.type,
