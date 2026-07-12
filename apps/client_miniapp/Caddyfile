@@ -2,9 +2,21 @@
 	root * /srv
 	encode gzip
 
-	# API проксируем на backend в той же docker-сети (один origin → нет CORS).
+	# До проверки Telegram initData доверяем только точному маршруту отправки заявки.
+	@public_requisition {
+		method POST
+		path /api/requisitions/public
+	}
+	handle @public_requisition {
+		reverse_proxy backend:8000 {
+			# Секрет остаётся внутри Docker-сети и не добавляется к другим API-запросам.
+			header_up X-Service-Token {$SERVICE_TOKEN}
+		}
+	}
+
+	# Неизвестные API-маршруты не должны попадать в SPA или доверенный proxy.
 	handle /api/* {
-		reverse_proxy backend:8000
+		respond "Not Found" 404
 	}
 
 	handle {
