@@ -12,6 +12,14 @@
 # незачем) и обращается к сервисам по их именам контейнеров.
 # ============================================================================
 
+# Общая дополнительная авторизация для инфраструктурных панелей. Это второй
+# барьер перед встроенными логинами сервисов, а не их замена.
+(infra_admin_auth) {
+	basic_auth {
+		{$EDGE_ADMIN_USER} {$EDGE_ADMIN_PASSWORD_HASH}
+	}
+}
+
 # Админ-панель. Внутри admin_miniapp свой Caddy: раздаёт Vue-статику и
 # проксирует /api на backend (один origin → нет CORS). Мы просто проксируем
 # на него весь хост.
@@ -26,15 +34,18 @@ app.{$PUBLIC_HOST} {
 
 # Grafana — дашборды и просмотр логов.
 grafana.{$PUBLIC_HOST} {
+	import infra_admin_auth
 	reverse_proxy grafana:3000
 }
 
 # MinIO — веб-консоль S3-хранилища.
 minio.{$PUBLIC_HOST} {
+	import infra_admin_auth
 	reverse_proxy minio:9001
 }
 
 # RabbitMQ — management UI брокера сообщений.
 rabbitmq.{$PUBLIC_HOST} {
+	import infra_admin_auth
 	reverse_proxy rabbitmq:15672
 }

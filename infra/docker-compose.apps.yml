@@ -24,7 +24,8 @@ services:
     env_file:
       - .env
     ports:
-      - "8000:8000"
+      # Для локальной диагностики; извне API доступен только через edge-Caddy.
+      - "127.0.0.1:8000:8000"
     volumes:
       # Синхронизация миграций с хостом: контейнер применяет файлы версий из
       # репозитория (entrypoint делает `alembic upgrade head` при старте).
@@ -68,7 +69,7 @@ services:
       context: ../apps/admin_miniapp
     restart: unless-stopped
     ports:
-      - "8080:80"
+      - "127.0.0.1:8080:80"
     depends_on:
       - backend
     networks:
@@ -83,7 +84,7 @@ services:
       context: ../apps/client_miniapp
     restart: unless-stopped
     ports:
-      - "8081:80"
+      - "127.0.0.1:8081:80"
     depends_on:
       backend:
         condition: service_healthy
