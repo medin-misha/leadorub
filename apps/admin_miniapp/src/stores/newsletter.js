@@ -2,64 +2,7 @@ import { defineStore } from 'pinia'
 import { extractError } from '@/api/http'
 import { newsletterApi } from '@/api/newsletter'
 import { CALLBACK_DATA_MAX_BYTES } from '@/constants'
-
-// Telegram принимает в inline-URL-кнопке только http(s) и deep-link tg://
-// (Bot API, InlineKeyboardButton.url — «HTTP or tg:// URL»).
-const URL_SCHEMES = ['http:', 'https:', 'tg:']
-
-// IPv4 вида 1.2.3.4 — у него «TLD» числовой, поэтому разрешаем отдельным правилом.
-const IPV4_RE = /^(\d{1,3}\.){3}\d{1,3}$/
-
-// Похож ли хост http(s)-ссылки на «настоящий» домен. Важно: new URL() пропускает
-// одно-словные хосты («asdasd», «localhost») — синтаксически они валидны, но
-// Telegram их отклоняет («Bad Request: ... URL is invalid: Wrong HTTP URL»):
-// ему нужен домен с точкой и непустым TLD. Эту проверку URL-конструктор не делает.
-function isValidHttpHost(hostname) {
-  if (!hostname) return false
-  if (IPV4_RE.test(hostname)) return true
-  const labels = hostname.split('.')
-  // Нужно ≥2 меток, ни одной пустой (нет ведущей/висячей/двойной точки),
-  // и TLD из ≥2 символов (.com, .ru, .io …).
-  if (labels.length < 2) return false
-  if (labels.some((label) => label.length === 0)) return false
-  return labels[labels.length - 1].length >= 2
-}
-
-// Валиден ли URL inline-кнопки. Парсим конструктором URL (он отсекает мусор без
-// схемы и с пробелами), проверяем схему, а для http(s) — ещё и «настоящий» хост.
-function isValidButtonUrl(value) {
-  let parsed
-  try {
-    parsed = new URL(value)
-  } catch {
-    return false
-  }
-  if (!URL_SCHEMES.includes(parsed.protocol)) return false
-  // tg:// — deep-link внутрь Telegram, домен ему не нужен.
-  if (parsed.protocol === 'tg:') return true
-  return isValidHttpHost(parsed.hostname)
-}
-
-// Длина строки в БАЙТАХ UTF-8: лимит Telegram на callback_data — 64 байта, а не
-// символа, поэтому считаем именно байты (TextEncoder есть во всех целевых браузерах).
-function callbackDataBytes(value) {
-  return new TextEncoder().encode(value).length
-}
-
-// Валидность одной кнопки в зависимости от типа клавиатуры.
-// reply: достаточно текста. inline: текст + РОВНО одно из url / callback_data,
-// причём url — валидная ссылка, а callback_data — не длиннее лимита Telegram.
-function isButtonValid(btn, type) {
-  if (!btn.text.trim()) return false
-  if (type === 'reply') return true
-  const url = btn.url.trim()
-  const cb = btn.callback_data.trim()
-  const hasUrl = url.length > 0
-  const hasCb = cb.length > 0
-  if (hasUrl === hasCb) return false // XOR — ровно одно поле заполнено
-  if (hasUrl) return isValidButtonUrl(url)
-  return callbackDataBytes(cb) <= CALLBACK_DATA_MAX_BYTES
-}
+import { isButtonValid } from '@/utils/newsletterValidation'
 
 export const useNewsletterStore = defineStore('newsletter', {
   state: () => ({

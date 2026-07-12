@@ -12,3 +12,17 @@ dependencies = [
     "pydantic-settings>=2.14.0",
     "redis>=8.0.1",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3,<9",
+    "ruff>=0.11,<1",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+# Базовый gate без массового форматирования существующего кода.
+select = ["E9", "F"]
