@@ -25,6 +25,8 @@ Live in `app/core/security.py` (core must not depend on modules): `hash_password
 
 ## Endpoints (prefix `/api/auth`)
 - `POST /login` — public. `{username, password}` → `{access_token, token_type}`. Generic 401 on bad creds.
+  Login attempts use fixed in-memory windows: per IP+username and per IP. A successful
+  login resets both counters; an exhausted window returns 429 with `Retry-After`.
 - `GET /me` — current admin (requires JWT).
 - `GET /admins` — list (requires JWT).
 - `POST /admins` — create (requires JWT). 400 on duplicate username.
@@ -36,3 +38,11 @@ Live in `app/core/security.py` (core must not depend on modules): `hash_password
 
 ## Settings (`app/core/config.py`, read from `infra/.env`, lowercase)
 `admin_username`, `admin_password`, `jwt_secret_key` (required), `jwt_algorithm` (HS256), `jwt_access_token_expire_minutes` (720), `service_token`.
+
+Login rate limiting settings: `admin_login_rate_limit_attempts` (5 per IP+username),
+`admin_login_rate_limit_ip_attempts` (20 per IP),
+`admin_login_rate_limit_window_seconds` (300), and
+`admin_login_trusted_proxy_cidrs` (comma-separated CIDRs). `X-Forwarded-For` is
+ignored unless the direct peer belongs to one of these trusted networks. The
+limiter is process-local, which matches the current single-worker deployment;
+multiple backend replicas require a shared store such as Redis.

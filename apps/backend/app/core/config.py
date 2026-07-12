@@ -66,6 +66,10 @@ class MainSettings(BaseSettings):
     minio_secret_key: str
     minio_bucket: str
     minio_secure: bool = False
+    # Лимиты проверяются по фактическому размеру уже принятого multipart-файла.
+    file_upload_max_size_bytes: int = Field(default=20 * 1024 * 1024, ge=1)
+    chat_upload_max_size_bytes: int = Field(default=20 * 1024 * 1024, ge=1)
+    newsletter_upload_max_size_bytes: int = Field(default=20 * 1024 * 1024, ge=1)
 
     # taskiq
     taskiq_enabled: bool = False
@@ -93,6 +97,18 @@ class MainSettings(BaseSettings):
     jwt_algorithm: str = "HS256"
     # TTL access-токена в минутах (по умолчанию 12 часов).
     jwt_access_token_expire_minutes: int = Field(default=720, ge=1)
+    # Login ограничивается одновременно по IP и по паре IP+username.
+    admin_login_rate_limit_attempts: int = Field(default=5, ge=1)
+    admin_login_rate_limit_ip_attempts: int = Field(default=20, ge=1)
+    admin_login_rate_limit_window_seconds: int = Field(default=300, ge=1)
+    # X-Forwarded-For учитывается только от контролируемых reverse proxy.
+    admin_login_trusted_proxy_cidrs: Any = [
+        "127.0.0.1/32",
+        "::1/128",
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+    ]
     # Общий статический токен для server-to-server вызовов (юзер-бот → backend).
     # Если None — сервисные эндпоинты отклоняют любые запросы по X-Service-Token.
     service_token: str | None = None
@@ -100,6 +116,17 @@ class MainSettings(BaseSettings):
     user_bot: str | None = None
     # Telegram рекомендует дополнительно ограничивать срок жизни подписанных данных.
     telegram_init_data_max_age_seconds: int = Field(default=3600, ge=60)
+    # Публичные заявки ограничиваются по IP и по паре IP+Telegram user id.
+    public_requisition_rate_limit_attempts: int = Field(default=3, ge=1)
+    public_requisition_rate_limit_ip_attempts: int = Field(default=10, ge=1)
+    public_requisition_rate_limit_window_seconds: int = Field(default=300, ge=1)
+
+    @field_validator("admin_login_trusted_proxy_cidrs", mode="before")
+    @classmethod
+    def assemble_trusted_proxy_cidrs(cls, v: str | list[str]) -> list[str]:
+        if isinstance(v, str):
+            return [item.strip() for item in v.split(",") if item.strip()]
+        return v
 
     @property
     def redis_url(self) -> str | None:
