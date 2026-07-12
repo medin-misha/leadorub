@@ -28,14 +28,14 @@ from app.modules.system.client import BackendClientError
 from app.modules.system.config import system_settings
 from app.modules.system.deep_link import parse_source
 from app.modules.system.messages import get_messages
-from app.modules.psychologist.keyboards import get_main_menu_keyboard
-from app.modules.psychologist.messages import get_messages as get_psy_messages
+from app.modules.tocka_zborki.keyboards import get_main_menu_keyboard
+from app.modules.tocka_zborki.messages import get_messages as get_tocka_zborki_messages
 
 logger = logging.getLogger(__name__)
 
 router = Router(name="system")
 _MESSAGES = get_messages()
-_PSY_MESSAGES = get_psy_messages()
+_TOCKA_ZBORKI_MESSAGES = get_tocka_zborki_messages()
 
 
 @router.message(Command("start"))
@@ -61,7 +61,7 @@ async def start_command(
     await _provision_on_start(message, source)
 
     await message.answer(
-        text=_PSY_MESSAGES["welcome"],
+        text=_TOCKA_ZBORKI_MESSAGES["welcome"],
         reply_markup=get_main_menu_keyboard(),
     )
 

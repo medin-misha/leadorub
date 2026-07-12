@@ -50,6 +50,10 @@ class MainSettings(BaseSettings):
         default="http://localhost:8081",
         validation_alias=AliasChoices("CLIENT_MINIAPP_URL", "client_miniapp_url"),
     )
+    training_guide_path: Path = Field(
+        default=BASE_DIR / "assets" / "sila_tvorozhka.pdf",
+        validation_alias=AliasChoices("TRAINING_GUIDE_PATH", "training_guide_path"),
+    )
     amqp_url: str | None = Field(
         default=None,
         validation_alias=AliasChoices("AMQP_URL", "amqp_url"),
