@@ -14,6 +14,10 @@ from .topology import ExchangeSpec, QueueSpec
 logger = getLogger(__name__)
 
 
+class RetryableRMQError(RuntimeError):
+    """Ошибка handler-а, после которой сообщение нужно вернуть в очередь."""
+
+
 class RMQConsumerService:
     def __init__(self, client: RMQClient) -> None:
         self._client = client
@@ -70,6 +74,14 @@ class RMQConsumerService:
 
         try:
             await registration.handler(message)
+        except RetryableRMQError:
+            logger.warning(
+                "RMQ consumer handler requested retry for queue '%s'",
+                registration.queue_name,
+                exc_info=True,
+            )
+            await incoming.reject(requeue=True)
+            return
         except Exception:
             logger.exception(
                 "RMQ consumer handler failed for queue '%s'",

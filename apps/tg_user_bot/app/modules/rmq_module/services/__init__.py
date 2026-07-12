@@ -1,4 +1,5 @@
 from .client import RMQClient, rmq_client
+from .consumer import RetryableRMQError
 from .publisher import RMQPublisher, rmq_publisher
 from .registry import (
     ConsumerRegistration,
@@ -17,6 +18,7 @@ __all__: list[str] = [
     "RMQConsumerRegistry",
     "RMQPublisher",
     "RMQRuntime",
+    "RetryableRMQError",
     "register_consumer",
     "rmq_client",
     "rmq_publisher",

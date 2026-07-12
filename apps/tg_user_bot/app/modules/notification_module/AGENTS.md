@@ -62,10 +62,10 @@ text, so a caption packed with special chars could still overflow once escaped.
 
 ## Idempotency (newsletter dedup)
 
-The backend splits a broadcast into chunks (one RMQ message per chunk) that share one `broadcast_id`; each chunk is acked separately. To make chunk redelivery safe (RabbitMQ `consumer_timeout`, bot crash mid-chunk), the sender claims every recipient before sending: `idempotency_store.claim(broadcast_id, chat_id)` runs `SET newsletter:{broadcast_id}:{chat_id} 1 NX EX <ttl>` in Redis. `True` (key set — we are first) → send; `False` (key already existed) → skip. The marker is NOT deleted — it outlives the broadcast; TTL cleans it up.
+The backend splits a broadcast into chunks (one RMQ message per chunk) that share one `broadcast_id`. The sender uses a two-phase per-recipient marker: `claim` creates a unique short-lived `processing` value with `SET NX`; success and permanent 403 failures atomically become long-lived `sent`; temporary failures atomically release only the owning worker's claim and raise `RetryableRMQError`, so the transport rejects with `requeue=True`. On redelivery, completed recipients are skipped and only released recipients are retried.
 
 - Both loops (`_broadcast_text`, `_broadcast_file`) claim before sending. In `_broadcast_file` the claim runs BEFORE building media, so a skipped recipient does not consume the byte-upload that captures the reusable Telegram file_id.
-- Degrade → claim returns `True` (send without dedup) when `broadcast_id` is `None` (old message during rolling deploy) OR Redis is unavailable/errors. Delivery is prioritized over dedup; a warning is logged.
+- Degrade → claim returns an untracked claim (send without dedup) when `broadcast_id` is `None` (old message during rolling deploy) OR Redis is unavailable/errors. Delivery is prioritized over dedup; a warning is logged.
 - Store: `services/idempotency.py` (`idempotency_store` singleton), connected/closed in `app/bot/lifecycle.py`. Config (`app/core/config.py`): `redis_host`/`redis_port`/`redis_db`/`redis_password` (mirror of the backend, single `redis_password` secret from `infra/.env`) + `redis_url` property; marker TTL `newsletter_idempotency_ttl_seconds` (default `172800` = 48h, ENV).
 
 ## How Consumer Registration works

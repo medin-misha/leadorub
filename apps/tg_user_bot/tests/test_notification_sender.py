@@ -13,6 +13,10 @@ from app.modules.notification_module.schemas import (
     TelegramNotification,
 )
 from app.modules.notification_module.services import sender
+from app.modules.notification_module.services.idempotency import IdempotencyClaim
+
+
+CLAIM = IdempotencyClaim(key=None, token=None)
 
 
 class BuildMarkupTests(unittest.TestCase):
@@ -51,9 +55,44 @@ class BroadcastTests(unittest.IsolatedAsyncioTestCase):
         )
         fake_bot = MagicMock()
         fake_bot.send_message = AsyncMock(side_effect=[None, Exception("boom"), None])
-        with patch.object(sender, "bot", fake_bot), patch("asyncio.sleep", AsyncMock()):
-            await sender.send_notification(n)
+        with (
+            patch.object(sender, "bot", fake_bot),
+            patch.object(
+                sender.idempotency_store, "claim", AsyncMock(return_value=CLAIM)
+            ),
+            patch.object(sender.idempotency_store, "complete", AsyncMock()),
+            patch.object(sender.idempotency_store, "release", AsyncMock()) as release,
+            patch("asyncio.sleep", AsyncMock()),
+        ):
+            with self.assertRaises(sender.NotificationDeliveryError):
+                await sender.send_notification(n)
         self.assertEqual(fake_bot.send_message.await_count, 3)
+        release.assert_awaited_once_with(CLAIM)
+
+    async def test_success_is_completed_and_redelivery_is_skipped(self) -> None:
+        n = TelegramNotification.model_validate(
+            {"chat_ids": [1], "message": "hi", "broadcast_id": "b1"}
+        )
+        fake_bot = MagicMock()
+        fake_bot.send_message = AsyncMock(return_value=MagicMock())
+        claim = MagicMock()
+        with (
+            patch.object(sender, "bot", fake_bot),
+            patch.object(
+                sender.idempotency_store,
+                "claim",
+                AsyncMock(side_effect=[claim, None]),
+            ),
+            patch.object(
+                sender.idempotency_store, "complete", AsyncMock()
+            ) as complete,
+            patch("asyncio.sleep", AsyncMock()),
+        ):
+            await sender.send_notification(n)
+            await sender.send_notification(n)
+
+        self.assertEqual(fake_bot.send_message.await_count, 1)
+        complete.assert_awaited_once_with(claim)
 
     async def test_file_broadcast_reuses_telegram_file_id(self) -> None:
         n = TelegramNotification.model_validate(
@@ -80,7 +119,7 @@ class BroadcastTests(unittest.IsolatedAsyncioTestCase):
     async def test_text_broadcast_skips_already_claimed(self) -> None:
         # claim: True для 1 и 3, False для 2 (как будто 2-му уже слали).
         async def fake_claim(broadcast_id, chat_id):
-            return chat_id != 2
+            return CLAIM if chat_id != 2 else None
 
         n = TelegramNotification.model_validate(
             {"chat_ids": [1, 2, 3], "message": "hi", "broadcast_id": "b1"}
@@ -105,7 +144,7 @@ class BroadcastTests(unittest.IsolatedAsyncioTestCase):
         # claim False для 1 (пропуск), True для 2 и 3. Байты должен загрузить
         # ПЕРВЫЙ реально отправленный (2-й), а 3-й — переиспользовать file_id.
         async def fake_claim(broadcast_id, chat_id):
-            return chat_id != 1
+            return CLAIM if chat_id != 1 else None
 
         n = TelegramNotification.model_validate(
             {
@@ -157,7 +196,7 @@ class BroadcastTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(sender, "bot", fake_bot),
             patch.object(
-                sender.idempotency_store, "claim", AsyncMock(return_value=True)
+                sender.idempotency_store, "claim", AsyncMock(return_value=CLAIM)
             ),
             patch("asyncio.sleep", sleep_mock),
         ):
@@ -178,11 +217,12 @@ class BroadcastTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(sender, "bot", fake_bot),
             patch.object(
-                sender.idempotency_store, "claim", AsyncMock(return_value=True)
+                sender.idempotency_store, "claim", AsyncMock(return_value=CLAIM)
             ),
             patch("asyncio.sleep", AsyncMock()),
         ):
-            await sender.send_notification(n)
+            with self.assertRaises(sender.NotificationDeliveryError):
+                await sender.send_notification(n)
         self.assertEqual(fake_bot.send_message.await_count, sender.MAX_FLOOD_RETRIES)
 
     async def test_forbidden_skips_recipient_without_retry(self) -> None:
@@ -197,7 +237,7 @@ class BroadcastTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(sender, "bot", fake_bot),
             patch.object(
-                sender.idempotency_store, "claim", AsyncMock(return_value=True)
+                sender.idempotency_store, "claim", AsyncMock(return_value=CLAIM)
             ),
             patch("asyncio.sleep", AsyncMock()),
         ):
@@ -220,7 +260,7 @@ class BroadcastTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(sender, "bot", fake_bot),
             patch.object(
-                sender.idempotency_store, "claim", AsyncMock(return_value=True)
+                sender.idempotency_store, "claim", AsyncMock(return_value=CLAIM)
             ),
             patch("asyncio.sleep", AsyncMock()),
         ):
@@ -241,7 +281,7 @@ class BroadcastTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(sender, "bot", fake_bot),
             patch.object(
-                sender.idempotency_store, "claim", AsyncMock(return_value=True)
+                sender.idempotency_store, "claim", AsyncMock(return_value=CLAIM)
             ),
             patch.object(
                 sender, "fetch_file", AsyncMock(return_value=(b"x", "image/png"))

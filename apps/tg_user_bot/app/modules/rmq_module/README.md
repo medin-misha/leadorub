@@ -164,7 +164,9 @@ register_consumer(
 - валидирует входящие сообщения как `RMQMessage`;
 - вызывает зарегистрированный async handler;
 - делает `ack` на success;
-- делает `reject(requeue=False)` на invalid envelope или handler error.
+- делает `reject(requeue=False)` на invalid envelope или обычную ошибку handler-а;
+- делает `reject(requeue=True)`, если handler поднял публичный
+  `RetryableRMQError` для заведомо временной ошибки.
 
 ## Роутер Модуля
 

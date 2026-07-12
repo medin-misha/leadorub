@@ -1,9 +1,14 @@
 import unittest
+from unittest.mock import AsyncMock, MagicMock
 
 from app.modules.rmq_module import RMQConfigurationError
 from app.modules.rmq_module.config import rmq_settings
 from app.modules.rmq_module.schemas import RMQMessage
 from app.modules.rmq_module.services.client import RMQClient
+from app.modules.rmq_module.services.consumer import (
+    RMQConsumerService,
+    RetryableRMQError,
+)
 from app.modules.rmq_module.services.publisher import RMQPublisher
 from app.modules.rmq_module.services.registry import RMQConsumerRegistry
 from app.modules.rmq_module.services.runtime import RMQRuntime
@@ -168,3 +173,31 @@ class RMQRuntimeTests(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaises(RMQConfigurationError):
             await runtime.start()
+
+
+class RMQConsumerServiceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_retryable_handler_error_requeues_message(self) -> None:
+        async def retryable_handler(message: RMQMessage) -> None:
+            _ = message
+            raise RetryableRMQError("temporary failure")
+
+        registration = RMQConsumerRegistry().register(
+            queue_name="queue.a",
+            exchange_name="app.events",
+            routing_key="queue.a",
+            handler=retryable_handler,
+        )
+        incoming = MagicMock()
+        incoming.body = RMQMessage(
+            event="test",
+            payload={},
+            source="tests",
+        ).model_dump_json().encode()
+        incoming.reject = AsyncMock()
+        incoming.ack = AsyncMock()
+
+        service = RMQConsumerService(client=_FakeClient())
+        await service._handle_message(incoming, registration)
+
+        incoming.reject.assert_awaited_once_with(requeue=True)
+        incoming.ack.assert_not_awaited()

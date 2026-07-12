@@ -81,6 +81,7 @@ async def handler(message: RMQMessage) -> None:
 
 If the handler raises:
 
+- `RetryableRMQError` requeues the message;
 - the message is rejected without requeue in V1;
 - the failure is logged by the runtime.
 

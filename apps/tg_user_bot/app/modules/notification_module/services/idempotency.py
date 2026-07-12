@@ -1,17 +1,14 @@
-"""Идемпотентность рассылки через Redis.
+"""Идемпотентность рассылки через Redis с двухфазным маркером.
 
-Стратегия claim-before-send: перед отправкой каждому получателю ставим маркер
-`SET newsletter:{broadcast_id}:{chat_id} 1 NX EX <ttl>`. Если поставили (ключа
-не было) — мы первые, шлём. Если ключ уже есть — уже слали, пропускаем. Маркер
-НЕ удаляется: он переживает рассылку и при редоставке чанка не даёт отправить
-повторно. Чистит его TTL.
-
-Degrade: если broadcast_id нет (старое сообщение) или Redis недоступен/упал —
-claim возвращает True (шлём без дедупа). Доставка приоритетнее дедупа.
+Короткий ``processing``-маркер защищает от параллельной отправки, а ``sent``
+ставится только после успешной или заведомо невозможной доставки. При временной
+ошибке processing снимается, поэтому повторная доставка RMQ может попробовать снова.
 """
 
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
+from uuid import uuid4
 
 from redis.asyncio import Redis, from_url
 
@@ -20,20 +17,41 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Префикс отделяет маркеры рассылки от прочих ключей в той же БД Redis.
 KEY_PREFIX = "newsletter"
+PROCESSING_TTL_SECONDS = 900
+
+_COMPLETE_SCRIPT = """
+if redis.call('get', KEYS[1]) == ARGV[1] then
+    return redis.call('set', KEYS[1], 'sent', 'EX', ARGV[2])
+end
+return 0
+"""
+
+_RELEASE_SCRIPT = """
+if redis.call('get', KEYS[1]) == ARGV[1] then
+    return redis.call('del', KEYS[1])
+end
+return 0
+"""
+
+
+@dataclass(frozen=True, slots=True)
+class IdempotencyClaim:
+    """Право конкретного worker-а завершить или освободить отправку."""
+
+    key: str | None
+    token: str | None
 
 
 class IdempotencyStore:
-    """Redis-хранилище маркеров «кому уже отправили» в рамках одной рассылки."""
+    """Redis-хранилище состояний доставки получателю в рамках рассылки."""
 
     def __init__(self) -> None:
         self._redis: Redis | None = None
         self._ttl: int = 172800
 
     async def connect(self, settings: "MainSettings") -> None:
-        """Подключается к Redis на старте бота. Best-effort: при ошибке/отсутствии
-        конфига остаёмся в degrade (claim всегда True)."""
+        """Подключается к Redis; при недоступности работает без дедупликации."""
         self._ttl = settings.newsletter_idempotency_ttl_seconds
         if not settings.redis_url:
             logger.warning(
@@ -57,26 +75,55 @@ class IdempotencyStore:
             await self._redis.aclose()
             self._redis = None
 
-    async def claim(self, broadcast_id: str | None, chat_id: int | str) -> bool:
-        """Пытается застолбить отправку. True = слать, False = пропустить (уже слали).
-
-        degrade → True: нет broadcast_id (старое сообщение) или Redis недоступен.
-        """
+    async def claim(
+        self, broadcast_id: str | None, chat_id: int | str
+    ) -> IdempotencyClaim | None:
+        """Возвращает claim для отправки или ``None``, если адресат уже занят/готов."""
         if broadcast_id is None or self._redis is None:
-            return True
+            return IdempotencyClaim(key=None, token=None)
+
         key = f"{KEY_PREFIX}:{broadcast_id}:{chat_id}"
+        token = f"processing:{uuid4()}"
         try:
-            # SET ... NX EX: вернёт True если поставили, None если ключ уже был.
-            was_set = await self._redis.set(key, 1, nx=True, ex=self._ttl)
-            return bool(was_set)
+            was_set = await self._redis.set(
+                key, token, nx=True, ex=PROCESSING_TTL_SECONDS
+            )
+            return IdempotencyClaim(key=key, token=token) if was_set else None
         except Exception:
             logger.warning(
                 "[idempotency] ошибка Redis при claim chat_id=%s — degrade",
                 chat_id,
                 exc_info=True,
             )
-            return True
+            return IdempotencyClaim(key=None, token=None)
+
+    async def complete(self, claim: IdempotencyClaim) -> None:
+        """Атомарно заменяет принадлежащий worker-у processing на долгий sent."""
+        if claim.key is None or claim.token is None or self._redis is None:
+            return
+        try:
+            await self._redis.eval(
+                _COMPLETE_SCRIPT, 1, claim.key, claim.token, self._ttl
+            )
+        except Exception:
+            logger.warning(
+                "[idempotency] не удалось зафиксировать доставку key=%s",
+                claim.key,
+                exc_info=True,
+            )
+
+    async def release(self, claim: IdempotencyClaim) -> None:
+        """Снимает только собственный processing после временной ошибки."""
+        if claim.key is None or claim.token is None or self._redis is None:
+            return
+        try:
+            await self._redis.eval(_RELEASE_SCRIPT, 1, claim.key, claim.token)
+        except Exception:
+            logger.warning(
+                "[idempotency] не удалось освободить claim key=%s",
+                claim.key,
+                exc_info=True,
+            )
 
 
-# Модульный синглтон: создаётся при импорте, подключается в lifecycle.
 idempotency_store = IdempotencyStore()

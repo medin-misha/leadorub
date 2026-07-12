@@ -1,6 +1,8 @@
 import asyncio
 import html
 import logging
+from dataclasses import dataclass
+from enum import Enum
 
 from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
@@ -15,6 +17,7 @@ from aiogram.types import (
 )
 
 from app.core import settings
+from app.modules.rmq_module import RetryableRMQError
 from ..schemas import TelegramNotification
 from .backend_files import fetch_file
 from .idempotency import idempotency_store
@@ -33,6 +36,22 @@ THROTTLE_SECONDS = 0.05
 # Сколько раз повторяем одну отправку при FloodWait (429), прежде чем сдаться.
 # Защита от бесконечного цикла, если Telegram продолжает возвращать retry_after.
 MAX_FLOOD_RETRIES = 5
+
+
+class DeliveryStatus(Enum):
+    DELIVERED = "delivered"
+    PERMANENT_FAILURE = "permanent_failure"
+    RETRYABLE_FAILURE = "retryable_failure"
+
+
+@dataclass(frozen=True, slots=True)
+class DeliveryResult:
+    status: DeliveryStatus
+    message: object | None = None
+
+
+class NotificationDeliveryError(RetryableRMQError):
+    """Хотя бы один адресат временно не получил уведомление."""
 
 
 def build_markup(use_buttons, buttons):
@@ -105,14 +124,14 @@ async def _send_with_retry(make_request, chat_id: int):
       временный бан всего бота, а не одного получателя.
     - `TelegramForbiddenError` (403, бота заблокировали/чат удалён): ожидаемая
       ситуация, без стектрейса и без ретраев — этому получателю уже не доставить.
-    - прочее: логируем со стектрейсом и пропускаем получателя, чтобы рассылка
-      не падала целиком из-за одного адресата.
+    - прочее: считаем временной ошибкой; после прохода по чанку RMQ повторит его,
+      а уже успешные адресаты будут пропущены по Redis-маркеру.
 
-    Возвращает `Message` при успехе или `None`, если доставить не удалось.
+    Возвращает явный статус доставки и `Message` при успехе.
     """
     for attempt in range(1, MAX_FLOOD_RETRIES + 1):
         try:
-            return await make_request()
+            return DeliveryResult(DeliveryStatus.DELIVERED, await make_request())
         except TelegramRetryAfter as exc:
             logger.warning(
                 "[notification] flood limit on chat_id=%s: retry after %ss "
@@ -125,17 +144,17 @@ async def _send_with_retry(make_request, chat_id: int):
             await asyncio.sleep(exc.retry_after)
         except TelegramForbiddenError:
             logger.info("[notification] chat_id=%s blocked the bot, skipping", chat_id)
-            return None
+            return DeliveryResult(DeliveryStatus.PERMANENT_FAILURE)
         except Exception:
             logger.exception("[notification] send failed for chat_id=%s", chat_id)
-            return None
+            return DeliveryResult(DeliveryStatus.RETRYABLE_FAILURE)
 
     logger.error(
         "[notification] giving up on chat_id=%s after %s flood retries",
         chat_id,
         MAX_FLOOD_RETRIES,
     )
-    return None
+    return DeliveryResult(DeliveryStatus.RETRYABLE_FAILURE)
 
 
 async def send_notification(notification: TelegramNotification) -> None:
@@ -153,11 +172,13 @@ async def send_notification(notification: TelegramNotification) -> None:
 
 
 async def _broadcast_text(notification: TelegramNotification, reply_markup) -> None:
+    retryable_chat_ids = []
     for chat_id in notification.chat_ids:
         # Дедуп: уже отправляли этому получателю в рамках этой рассылки — пропускаем.
-        if not await idempotency_store.claim(notification.broadcast_id, chat_id):
+        claim = await idempotency_store.claim(notification.broadcast_id, chat_id)
+        if claim is None:
             continue
-        await _send_with_retry(
+        result = await _send_with_retry(
             lambda chat_id=chat_id: bot.send_message(
                 chat_id=chat_id,
                 text=escape_html(notification.message or ""),
@@ -165,24 +186,36 @@ async def _broadcast_text(notification: TelegramNotification, reply_markup) -> N
             ),
             chat_id,
         )
+        if result.status is DeliveryStatus.RETRYABLE_FAILURE:
+            await idempotency_store.release(claim)
+            retryable_chat_ids.append(chat_id)
+        else:
+            await idempotency_store.complete(claim)
         await asyncio.sleep(THROTTLE_SECONDS)
+
+    if retryable_chat_ids:
+        raise NotificationDeliveryError(
+            f"temporary Telegram delivery failure for chat_ids={retryable_chat_ids}"
+        )
 
 
 async def _broadcast_file(notification: TelegramNotification, reply_markup) -> None:
     data, content_type = await fetch_file(notification.file_id)
     photo = is_photo(content_type)
     tg_file_id: str | None = None  # пойманный Telegram file_id для переиспользования
+    retryable_chat_ids = []
 
     for chat_id in notification.chat_ids:
         # Дедуп до загрузки байтов: пропущенный получатель не «съедает» reuse file_id.
-        if not await idempotency_store.claim(notification.broadcast_id, chat_id):
+        claim = await idempotency_store.claim(notification.broadcast_id, chat_id)
+        if claim is None:
             continue
         # первый раз — байты; дальше — уже загруженный Telegram file_id
         media = tg_file_id or BufferedInputFile(
             data, filename=f"file_{notification.file_id}"
         )
         if photo:
-            message = await _send_with_retry(
+            result = await _send_with_retry(
                 lambda media=media, chat_id=chat_id: bot.send_photo(
                     chat_id=chat_id,
                     photo=media,
@@ -192,10 +225,11 @@ async def _broadcast_file(notification: TelegramNotification, reply_markup) -> N
                 chat_id,
             )
             # file_id ловим только при успешной отправке (message не None).
+            message = result.message
             if message is not None and tg_file_id is None and message.photo:
                 tg_file_id = message.photo[-1].file_id
         else:
-            message = await _send_with_retry(
+            result = await _send_with_retry(
                 lambda media=media, chat_id=chat_id: bot.send_document(
                     chat_id=chat_id,
                     document=media,
@@ -204,6 +238,17 @@ async def _broadcast_file(notification: TelegramNotification, reply_markup) -> N
                 ),
                 chat_id,
             )
+            message = result.message
             if message is not None and tg_file_id is None and message.document:
                 tg_file_id = message.document.file_id
+        if result.status is DeliveryStatus.RETRYABLE_FAILURE:
+            await idempotency_store.release(claim)
+            retryable_chat_ids.append(chat_id)
+        else:
+            await idempotency_store.complete(claim)
         await asyncio.sleep(THROTTLE_SECONDS)
+
+    if retryable_chat_ids:
+        raise NotificationDeliveryError(
+            f"temporary Telegram delivery failure for chat_ids={retryable_chat_ids}"
+        )
