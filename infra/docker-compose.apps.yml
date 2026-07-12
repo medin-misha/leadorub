@@ -84,8 +84,6 @@ services:
     restart: unless-stopped
     ports:
       - "8081:80"
-    environment:
-      SERVICE_TOKEN: ${service_token}
     depends_on:
       backend:
         condition: service_healthy

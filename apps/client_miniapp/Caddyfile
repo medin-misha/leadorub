@@ -2,16 +2,13 @@
 	root * /srv
 	encode gzip
 
-	# До проверки Telegram initData доверяем только точному маршруту отправки заявки.
+	# Публичным остаётся только маршрут с серверной проверкой Telegram initData.
 	@public_requisition {
 		method POST
 		path /api/requisitions/public
 	}
 	handle @public_requisition {
-		reverse_proxy backend:8000 {
-			# Секрет остаётся внутри Docker-сети и не добавляется к другим API-запросам.
-			header_up X-Service-Token {$SERVICE_TOKEN}
-		}
+		reverse_proxy backend:8000
 	}
 
 	# Неизвестные API-маршруты не должны попадать в SPA или доверенный proxy.

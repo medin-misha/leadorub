@@ -98,6 +98,8 @@ class MainSettings(BaseSettings):
     service_token: str | None = None
     # Токен бота для валидации Telegram initData
     user_bot: str | None = None
+    # Telegram рекомендует дополнительно ограничивать срок жизни подписанных данных.
+    telegram_init_data_max_age_seconds: int = Field(default=3600, ge=60)
 
     @property
     def redis_url(self) -> str | None:

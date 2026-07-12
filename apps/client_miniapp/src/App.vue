@@ -79,17 +79,18 @@ function validate() {
 async function submitForm() {
   if (!validate()) return
 
+  const initData = tg?.initData
+  if (!initData) {
+    submitError.value = 'Открой MiniApp через кнопку в Telegram-боте.'
+    return
+  }
+
   isSubmitting.value = true
   submitError.value = ''
 
   const selectedTitle = types.find(t => t.id === selectedType.value)?.title || selectedType.value
   
-  // Достаем ID пользователя из Telegram WebApp initData
-  // Если WebApp запущен вне телеграма (в браузере), используем тестовый ID 12345
-  const telegramId = tg?.initDataUnsafe?.user?.id || 12345
-
   const payload = {
-    telegram_id: telegramId,
     type: 'consultation',
     name: name.value.trim(),
     phone: phone.value.trim(),
@@ -101,7 +102,7 @@ async function submitForm() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Telegram-Init-Data': tg?.initData || ''
+        'X-Telegram-Init-Data': initData
       },
       body: JSON.stringify(payload)
     })
