@@ -6,7 +6,7 @@ This module manages the creation and lifecycle of user requisitions (e.g., consu
 
 - **Models**: [Requisition](file:///home/medynskyi/leadorub/apps/backend/app/modules/requisition/models/requisition.py) (SQLAlchemy ORM, table `requisitions`), linked to `telegramuser.id`.
 - **Database**: PostgreSQL (JSON/JSONB for dynamic requisition payloads).
-- **Broker**: RabbitMQ via `rmq_publisher` to publish events about new requisitions and notifications to the user bot.
+- **Broker**: RabbitMQ via `rmq_publisher` for requisition-created and status-notification events.
 
 ---
 
@@ -31,6 +31,15 @@ Registered prefix: `/api/requisitions` (tag `requisitions`).
 - **Body**: `RequisitionCreate` (`telegram_id`, `type`, `payload`).
 - **Logic**: Validates user existence -> creates requisition in `pending` status -> publishes event `requisition.created` to `admin_requisitions` queue -> returns 201 with `RequisitionRead`.
 
+### 1a. `POST /api/requisitions/public`
+- **Access**: public transport, authenticated with signed Telegram WebApp data in
+  `X-Telegram-Init-Data`; it does not accept `X-Service-Token` as a browser credential.
+- **Identity**: validates HMAC, `auth_date`, and configured TTL, then derives
+  `telegram_id` from signed `user.id`.
+- **Abuse protection**: process-local sliding-window limits by IP and by
+  IP+Telegram ID; rejected requests return `429` with `Retry-After`.
+- **Body**: consultation fields only; a client-supplied `telegram_id` is forbidden.
+
 ### 2. `GET /api/requisitions`
 - **Access**: `require_admin` (admin session token).
 - **Params**: `status` (query, alias of `status_filter`), `type` (query, alias of `type_filter`), `page` (int, >=1, default 1), `limit` (int, >=1, default 10), `search` (str, optional).
@@ -43,11 +52,16 @@ Registered prefix: `/api/requisitions` (tag `requisitions`).
 ### 4. `PATCH /api/requisitions/{id}/status`
 - **Access**: `require_admin`.
 - **Body**: `RequisitionStatusUpdate` (`status`, `admin_comment`).
-- **Logic**: Updates status and comment -> publishes user notification `telegram.notification` to `telegram_notifications` queue -> returns `RequisitionRead`.
+- **Logic**: Updates status and comment -> publishes user notification
+  `telegram.notification` to `telegram_notifications` -> returns `RequisitionRead`.
 
 ---
 
 ## RabbitMQ Integration Contracts
+
+This module currently publishes these contracts directly. The transactional
+outbox is already used by newsletter and admin chat reply flows; migrating
+requisition events to it is a separate consistency improvement.
 
 ### A. Inbound / Admin Notifications (New Requisition -> Future `admin_bot`)
 - **Queue**: `admin_requisitions`

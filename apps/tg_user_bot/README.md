@@ -25,12 +25,18 @@
 
 ## Текущий функционал
 
-Сейчас в шаблоне подключены четыре модуля с разной ролью:
+В боте также подключена воронка фитнес-тренера «Точка Сборки»: `/start` показывает
+приветствие, выдаёт PDF-пособие по inline-кнопке, а затем открывает Mini App
+для записи на консультацию.
+
+Сейчас в приложении подключены модули с разной ролью:
 
 - `system` — обязательный системный infrastructure layer
 - `rmq_module` — общий RabbitMQ transport-layer
 - `notification_module` — RMQ-consumer, доставляющий пользователям сообщения и массовые рассылки от backend
-- `test_rmq_module` — демонстрационный модуль для проверки RMQ wiring
+- `support_module` — чат пользователя с администратором, включая фото и документы
+- `requisition_module` — создание заявок из сценариев бота
+- `tocka_zborki` — продуктовая воронка, PDF-пособие и запуск Client MiniApp
 
 Системный модуль предоставляет базовые команды:
 
@@ -51,20 +57,18 @@ registrations и включён `RABBITMQ_CONSUMER_ENABLED=true`.
 
 `notification_module` — это RMQ-consumer поверх `rmq_module`. Он слушает очередь
 `telegram_notifications` и доставляет пользователям сообщения от backend: одиночные
-уведомления и массовые рассылки. Рассылка приходит ОДНИМ сообщением со списком
-`chat_ids` — бот сам перебирает получателей. Поддерживаются текст, одно вложение
+уведомления и массовые рассылки. Backend режет аудиторию на настраиваемые чанки,
+каждый RMQ payload содержит список `chat_ids`, который бот последовательно обрабатывает.
+Двухфазные Redis-маркеры `processing → sent` предотвращают повтор успешных доставок;
+временная ошибка освобождает claim и возвращает сообщение в очередь. Поддерживаются текст, одно вложение
 (резолвится по `file_id` через backend `GET /api/files/{id}`; картинка → фото,
 остальное → документ) и клавиатуры (`use_buttons: INLINE|REPLY` с плоским списком
 кнопок). Контракт сообщения — в
 [app/modules/notification_module/README.md](app/modules/notification_module/README.md).
 
-`test_rmq_module` нужен как встроенный пример использования `rmq_module`:
-
-- регистрирует тестовый consumer во время импорта
-- добавляет команду `/rmqping`, которая публикует тестовое сообщение в RabbitMQ
-
-Если вам не нужен демонстрационный RMQ-сценарий, уберите `test_rmq_module` из
-`app/bot/registry.py`.
+Точные контракты и семантика повторов описаны в
+[notification_module/README.md](app/modules/notification_module/README.md) и
+[rmq_module/README.md](app/modules/rmq_module/README.md).
 
 ## Структура проекта
 
@@ -159,6 +163,8 @@ telegram_template/
 - `BACKEND_REQUEST_TIMEOUT` — таймаут HTTP-запросов к backend
 - `AUTH_CACHE_MAX_SIZE` — максимальный размер in-memory auth cache
 - `BOT_PARSE_MODE` — режим форматирования, по умолчанию `HTML`
+- `CLIENT_MINIAPP_URL` — HTTPS URL клиентского Mini App
+- `TRAINING_GUIDE_PATH` — путь к PDF-пособию; по умолчанию `assets/sila_tvorozhka.pdf`
 - `DEBUG` — включает debug-only команды вроде `/usersysinfo`
 
 Важно:
@@ -214,12 +220,12 @@ telegram_template/
 
 Единая точка подключения модулей.
 
-Сейчас там явная регистрация:
+Сейчас там явно регистрируются:
 
-- импортируется `system_router`
-- импортируется пустой инфраструктурный `rmq_router`
-- импортируется `test_rmq_router` для demo-команды `/rmqping`
-- каждый роутер подключается через `dispatcher.include_router(...)`
+- `system_router` и продуктовый `tocka_zborki_router`;
+- инфраструктурный `rmq_router`;
+- опциональные `notification_router` и `support_router`;
+- `requisition_router`.
 
 Это сделано намеренно.
 
@@ -231,7 +237,7 @@ telegram_template/
 - все активные модули видны в одном месте
 
 Если вы добавляете новый модуль, именно здесь он становится частью приложения.
-Точно так же здесь можно явно отключить demo-модули перед production-использованием шаблона.
+Порядок важен: системный `/start` подключается раньше catch-all обработчиков поддержки.
 
 ### `app/bot/lifecycle.py`
 
@@ -383,7 +389,11 @@ def register_routers(dispatcher):
 ```env
 TOKEN="your-telegram-bot-token"
 BACKEND_URL="http://localhost:8000/"
+SERVICE_TOKEN="shared-service-secret"
 BOT_PARSE_MODE="HTML"
+CLIENT_MINIAPP_URL="http://localhost:8081"
+TRAINING_GUIDE_PATH="assets/sila_tvorozhka.pdf"
+redis_password="shared-redis-password"
 ```
 
 ### Что обязательно
@@ -393,20 +403,19 @@ BOT_PARSE_MODE="HTML"
 ### Что опционально
 
 - `BACKEND_URL`
+- `SERVICE_TOKEN` — обязателен для защищённых server-to-server вызовов backend
 - `BOT_PARSE_MODE`
+- `CLIENT_MINIAPP_URL`
+- `TRAINING_GUIDE_PATH`
+- `redis_password` — включает идемпотентность рассылок через Redis
 
 ## Запуск проекта
 
-Если зависимости уже установлены:
+Установить зависимости и запустить:
 
 ```bash
-python main.py
-```
-
-Если вы работаете через локальное виртуальное окружение:
-
-```bash
-.venv/bin/python main.py
+uv sync --dev
+uv run python main.py
 ```
 
 ## Полезные проверки
@@ -415,6 +424,8 @@ python main.py
 
 ```bash
 python -m compileall app main.py
+uv run ruff check .
+uv run pytest -q
 ```
 
 ## Что важно помнить при развитии проекта
@@ -425,14 +436,7 @@ python -m compileall app main.py
 - Каждый модуль должен быть самостоятельным и понятным.
 - Если появляется новая ответственность, лучше вынести её в отдельный файл, чем раздувать `handlers.py`.
 
-## Куда двигаться дальше
+## Автоматические проверки
 
-Следующие разумные шаги для развития шаблона:
-
-- добавить `services.py` в модули для внешних интеграций
-- добавить клавиатуры и callback-handlers
-- добавить FSM для пошаговых сценариев
-- добавить общий HTTP-клиент для общения с FastAPI
-- добавить middleware, если появится общая логика для всех модулей
-
-Этот шаблон уже можно использовать как основу для реального модульного Telegram-бота.
+Workflow `.github/workflows/quality.yml` выполняет `uv sync --dev`, Ruff и pytest.
+Не добавляйте зависимости через `pip`: изменяйте `pyproject.toml` и lock-файл через `uv`.

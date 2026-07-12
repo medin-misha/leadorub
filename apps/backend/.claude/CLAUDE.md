@@ -96,6 +96,10 @@ Acts as the central communication channel for RabbitMQ:
 - **Event Publisher** (`RMQPublisher`): Publishes structured events wrapped in a standard event envelope containing `event`, `payload`, `message_id`, `correlation_id`, `timestamp`, and `source`.
 - **Consumer Registry** (`register_consumer`): Provides a decorator to register listener methods directly within business modules. Registered listeners are launched inside background tasks at startup if `rabbitmq_consumer_enabled=true`.
 - **Debug Route Support**: Provides `POST /api/rmq/publish` and `POST /api/rmq/consume` endpoints under `debug=true` and `rabbitmq_debug_endpoints_enabled=true` configuration flags.
+- **Transactional Outbox**: DB-dependent events must be queued with
+  `enqueue_outbox_message(session, ...)`. The outbox row commits atomically with
+  business data; a background dispatcher claims rows with `FOR UPDATE SKIP LOCKED`,
+  leases them, publishes with a stable message ID, and retries with backoff.
 
 ---
 
@@ -126,7 +130,7 @@ When tasked with adding a new feature or domain, follow this exact checklist:
 
 - **Maintain Comments**: Preserve all comments, annotations, and docstrings unless explicitly asked to modify them.
 - **No Direct Database Sessions**: Never instantiate a database session or engine manually inside business logic or API endpoints. Always use the dependency injection pattern (`Depends(database.get_session)`). **One sanctioned exception:** RMQ consumer handlers run outside a FastAPI request, where `Depends` is unavailable — they open a session via `database.sessionmaker()` directly and manage `commit`/`rollback` themselves. The reference implementation is `chat_module/services/consumer_handler.py` (the backend's first RMQ consumer, on queue `telegram_support_in`).
-- **Transactional Consistency**: Database operations inside services must rely on the transactional rollback safety already integrated into `app/modules/system` CRUD operations.
+- **Transactional Consistency**: Database operations inside services must rely on the transactional rollback safety already integrated into `app/modules/system` CRUD operations. Never publish a message that references data from the current uncommitted transaction; enqueue it through the RMQ outbox.
 - **Broker Abstraction**: Never import `aio-pika` or `pika` directly inside business modules. All message broker interactions must utilize `rmq_publisher` and `register_consumer`.
 - **No Hardcoded Secrets**: Secrets, credentials, access keys, or passwords must never be committed. Always use the `settings` config projection in `app/core/config.py` loaded from `.env`.
 - **Package Management**: Only use `uv add <package>` and `uv sync` to modify dependencies. Do not use `pip` or `poetry`.

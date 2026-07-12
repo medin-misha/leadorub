@@ -127,7 +127,7 @@ admin_miniapp/
 
 ```bash
 cd apps/admin_miniapp
-npm install
+npm ci
 npm run dev
 ```
 
@@ -153,10 +153,13 @@ docker compose -f docker-compose.apps.yml up -d --build admin_miniapp
 
 Для прода в `Caddyfile` замени `:80` на свой домен — Caddy сам выпустит TLS.
 
-## Известное ограничение
+## Проверки качества
 
-CRUD-эндпоинты backend (`/api/telegram/*`) **не имеют авторизации**. Раздавая
-админку наружу, ты открываешь управление пользователями всем, у кого есть доступ
-к адресу. На текущем (локальном) этапе это допустимо, но перед публичным
-развёртыванием нужно добавить проверку (например, валидацию Telegram `initData`
-на backend и гейт на фронте).
+```bash
+npm test
+npm run build
+```
+
+`npm test` проверяет вынесенную бизнес-валидацию кнопок рассылки. GitHub Actions
+дополнительно выполняет `npm ci`, тест и production-сборку. Административные API
+защищены Bearer JWT; публичным остаётся только login, защищённый rate limiting.

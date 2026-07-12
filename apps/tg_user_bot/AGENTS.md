@@ -1,122 +1,79 @@
-# Telegram Template Agent Context
+# Telegram User Bot — Agent Context
 
 ## Purpose
 
-This repository is a minimally working Telegram bot template built on `aiogram` in `polling-only` mode.
-It is intentionally small and is meant to be extended by adding modules under `app/modules`.
+Aiogram 3 long-polling bot for Leadorub. It is the Telegram transport/UI layer;
+persistent business data belongs to the FastAPI backend.
 
-The bot itself does **not** own a database.
-It acts as a Telegram transport layer that can be extended with additional modules.
+## Active modules
 
-## Architecture
+- `system` — backend authentication client, bounded in-memory auth cache,
+  `login_required`, runtime update context, and system commands.
+- `tocka_zborki` — product funnel, training PDF, and Client MiniApp launch.
+- `requisition_module` — bot-side requisition flows.
+- `support_module` — support FSM; text goes through RMQ and media through the
+  authenticated backend HTTP endpoint.
+- `notification_module` — consumes `telegram_notifications`, downloads optional
+  backend files, and delivers text/media/keyboards.
+- `rmq_module` — shared publisher, consumer registry, retry/requeue lifecycle.
 
-- `main.py`
-  Entrypoint. Configures logging and starts polling.
-- `app/core/config.py`
-  Loads settings from `.env`.
-- `app/core/logging.py`
-  Configures process-wide logging.
-- `app/bot/app.py`
-  Assembles the runtime objects: `Bot`, `Dispatcher`, lifecycle hooks.
-- `app/bot/dispatcher.py`
-  Creates the dispatcher and attaches routers.
-- `app/bot/registry.py`
-  Explicit router registry. New modules are connected here manually.
-- `app/bot/lifecycle.py`
-  Startup and shutdown hooks for polling mode.
-- `app/modules/*`
-  Modular bot features. Each module should expose its own `router`.
+Routers are registered explicitly in `app/bot/registry.py`. Preserve ordering:
+`system` must precede support catch-all handlers so `/start` can leave support mode.
 
-## Current Behavior
+## Delivery semantics
 
-At the moment the template includes one module:
+Newsletter payloads are chunked by backend. For each recipient, the notification
+module uses a Redis-owned two-phase claim:
 
-- `app/modules/system/handlers.py`
-  Provides `/start`, `/authstatus`, and `/usersysinfo`.
+1. acquire `processing` with a unique owner token;
+2. send to Telegram;
+3. atomically transition to `sent` on success or permanent 403;
+4. release on retryable failure and requeue the RMQ delivery.
 
-This module is also the mandatory infrastructure layer for future modules:
+Do not replace this with a one-step claim-before-send marker: it loses messages on
+temporary Telegram/network failures. If Redis is unavailable, delivery degrades to
+at-least-once without deduplication.
 
-- it owns the backend auth client
-- it keeps the in-memory auth cache
-- it exposes `login_required`
-- it publishes auth session data through runtime context
+## Integration rules
 
-The bot also includes `app/modules/notification_module` — an RMQ consumer (built on
-`rmq_module`) that delivers backend-originated messages to users: single notifications
-and broadcasts. A broadcast arrives as ONE message with a `chat_ids` list (the bot
-iterates recipients itself), supports an optional attachment (`file_id` resolved via
-backend `GET /api/files/{id}`; image → photo, else document) and `use_buttons:
-INLINE|REPLY` with a flat button list. See `app/modules/notification_module/AGENTS.md`.
+- Never add a database or ORM to this service.
+- Backend calls use the shared `aiohttp` client and `X-Service-Token`; never expose
+  that token to browser code.
+- Notification file downloads also require `X-Service-Token` because backend
+  `GET /api/files/{id}` is gated by `require_admin_or_service`.
+- Keep binary media out of RabbitMQ. Support uploads media to backend over HTTP.
+- External resources start/stop in `app/bot/lifecycle.py`, not handlers.
+- Module-specific behavior belongs in the nearest module `AGENTS.md` and Russian
+  `README.md`.
 
-The bot also includes `app/modules/support_module` — support mode (FSM). `/support`
-enters `SupportStates.active`; every text message is published to the `telegram_support_in`
-queue (`rmq_publisher`) and gets a 👀 reaction strictly AFTER a successful publish.
-`/stop`, an inline button, or `/start` exit the mode. Admin replies arrive back through
-the existing `notification_module` (no extra code). Handler order matters — see
-`app/modules/support_module/AGENTS.md`.
+## Adding a module
 
-## Design Rules
-
-- Keep `main.py` thin.
-- Keep bot assembly inside `app/bot/app.py`.
-- Keep module registration explicit in `app/bot/registry.py`.
-- Keep modules isolated inside `app/modules/<module_name>`.
-- Do not add database code to the bot project.
-- If a module needs data, keep that integration outside the bot storage layer.
-- Preserve and extend existing DocStrings instead of removing them.
-- Extend the system module instead of bypassing it for shared auth logic.
-- Every module must include both `README.md` and `AGENTS.md`.
-
-Module creation guide:
-
-- See [MODULETEMPLATE.md](/home/misha/code/module_service/telegram_template/MODULETEMPLATE.md)
-  for the canonical module structure, required files, auth usage, and
-  registration flow.
-- If a new module is structured as an independent service with its own `Dockerfile`, it **must** have a `.dockerignore` file in its root to exclude `.venv/`, `.git/`, local `.env` files, and `__pycache__/`.
-
-## How To Add A Module
-
-1. Create a folder under `app/modules/<module_name>/`.
-2. Add `handlers.py`.
-3. Define `router = Router(name="<module_name>")`.
-4. Add command/message/callback handlers to that router.
-5. Import that router in `app/bot/registry.py`.
-6. Register it with `dispatcher.include_router(...)`.
-
-Optional module files may include:
-
-- `services.py` for external integrations
-- `states.py` for FSM states
-- `keyboards.py` or `buttons.py` for Telegram UI helpers
-- `messages.json` for text templates
-
-If a module needs backend user auth, prefer:
-
-1. `@login_required`
-2. `get_current_auth_session()`
+Follow `MODULETEMPLATE.md`: create an isolated directory with `handlers.py`, expose
+an Aiogram `Router`, add English `AGENTS.md`, Russian `README.md`, and register the
+router explicitly in `app/bot/registry.py`.
 
 ## Environment
 
-Expected `.env` values:
+Key settings:
 
-- `TOKEN` required
-- `BACKEND_URL` optional but required for protected handlers
-- `BACKEND_API_PREFIX` optional, defaults to `/api`
-- `BACKEND_REQUEST_TIMEOUT` optional
-- `AUTH_CACHE_MAX_SIZE` optional
-- `BOT_PARSE_MODE` optional, defaults to `HTML`
-- `DEBUG` optional, enables debug-only commands
+- `TOKEN` — required Telegram bot token;
+- `BACKEND_URL`, `BACKEND_API_PREFIX`, `BACKEND_REQUEST_TIMEOUT`;
+- `SERVICE_TOKEN` — shared server-to-server backend secret;
+- `CLIENT_MINIAPP_URL`, `TRAINING_GUIDE_PATH`;
+- `AMQP_URL` and RabbitMQ runtime settings;
+- `redis_password`, host/port/db, and
+  `newsletter_idempotency_ttl_seconds` for delivery deduplication;
+- `DEBUG`, `BOT_PARSE_MODE`, `drop_pending_updates`.
 
-## Validation
+## Quality commands
 
-Useful local checks:
+Use `uv`, never `pip`:
 
-- `python main.py`
-- `python -m compileall app main.py`
+```bash
+uv sync --dev
+uv run ruff check .
+uv run pytest -q
+uv run python main.py
+```
 
-## Notes For Future Agents
-
-- The repository may contain placeholder directories or empty files from early scaffolding.
-  Prefer improving the current modular pattern rather than introducing a new architecture.
-- If you add a new module, explain both the code and the runtime flow in simple language.
-- When documenting changes, describe the bot as a minimally working template with explicit module registration.
+Preserve unrelated dirty worktree changes and keep commits scoped.

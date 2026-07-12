@@ -25,7 +25,9 @@
   дёргают и админка, и бот (например, `POST /telegram/users`, `GET /files/{id}`).
 
 ## Эндпоинты (`/api/auth`)
-- `POST /login` — публичный. `{username, password}` → `{access_token, token_type}`. На неверные данные — общий 401.
+- `POST /login` — публичный. `{username, password}` → `{access_token, token_type}`.
+  На неверные данные — общий 401. Попытки ограничены одновременно по IP и по
+  IP+username; превышение возвращает `429` и `Retry-After`.
 - `GET /me` — текущий админ (нужен JWT).
 - `GET /admins` — список (нужен JWT).
 - `POST /admins` — создать (нужен JWT). 400 при дубле username.
@@ -40,4 +42,6 @@
 
 ## Переменные окружения (`infra/.env`, lowercase)
 `admin_username`, `admin_password`, `jwt_secret_key` (обязателен), `jwt_algorithm` (HS256),
-`jwt_access_token_expire_minutes` (720), `service_token`.
+`jwt_access_token_expire_minutes` (720), `service_token`,
+`admin_login_rate_limit_attempts`, `admin_login_rate_limit_ip_attempts`,
+`admin_login_rate_limit_window_seconds`, `admin_login_trusted_proxy_cidrs`.

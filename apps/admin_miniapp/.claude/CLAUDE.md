@@ -19,6 +19,20 @@ bind to the same CSS variables.
 - API base URL is `/api` in every environment. Never hardcode host/port: in dev the
   Vite proxy forwards `/api` → backend; in prod Caddy reverse-proxies it. Same origin
   both ways → no CORS.
+- Admin API authentication is Bearer JWT. The public login endpoint is protected
+  by backend rate limiting; do not add Telegram `initData` auth to this SPA unless
+  the product authentication model is explicitly changed.
+
+## Quality commands
+
+```bash
+npm ci
+npm test
+npm run build
+```
+
+`npm test` covers extracted newsletter keyboard validation. Keep business
+validation in testable JavaScript modules rather than duplicating it in components.
 
 ## Architecture
 
