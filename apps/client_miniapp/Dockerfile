@@ -2,12 +2,12 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 COPY . .
 RUN npm run build
 
 # --- Stage 2: раздача через Caddy ---
-FROM caddy:2-alpine
+FROM caddy:2.11.4-alpine
 COPY Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/dist /srv
 EXPOSE 80

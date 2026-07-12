@@ -14,7 +14,7 @@ services:
   # PostgreSQL — основная реляционная БД (бэкенд, asyncpg).
   # --------------------------------------------------------------------------
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17.10-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -34,7 +34,7 @@ services:
   # Redis — result backend и source расписаний для taskiq.
   # --------------------------------------------------------------------------
   redis:
-    image: redis:7-alpine
+    image: redis:7.4.9-alpine
     restart: unless-stopped
     # appendonly — persistence: данные переживут перезапуск контейнера.
     # requirepass — Redis закрыт паролем (единый источник — ${redis_password}).
@@ -55,7 +55,7 @@ services:
   # RabbitMQ — брокер сообщений (aio-pika, taskiq). С management-UI на :15672.
   # --------------------------------------------------------------------------
   rabbitmq:
-    image: rabbitmq:4-management-alpine
+    image: rabbitmq:4.3.2-management-alpine
     restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
@@ -77,7 +77,7 @@ services:
   # API на :9000, веб-консоль на :9001.
   # --------------------------------------------------------------------------
   minio:
-    image: minio/minio:latest
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
@@ -103,7 +103,7 @@ services:
   # mc retry'ит alias до готовности MinIO, поэтому отдельный healthcheck не нужен.
   # --------------------------------------------------------------------------
   minio-init:
-    image: minio/mc:latest
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
     depends_on:
       minio:
         condition: service_healthy
@@ -125,7 +125,7 @@ services:
   # Loki — хранилище логов (источник данных для Grafana).
   # --------------------------------------------------------------------------
   loki:
-    image: grafana/loki:3.4
+    image: grafana/loki:3.4.3
     restart: unless-stopped
     command: ["-config.file=/etc/loki/config.yml"]
     volumes:
@@ -139,7 +139,7 @@ services:
   # Нужен доступ к docker-сокету (ro), чтобы видеть контейнеры и их логи.
   # --------------------------------------------------------------------------
   alloy:
-    image: grafana/alloy:latest
+    image: grafana/alloy:v1.17.1
     restart: unless-stopped
     command:
       - run
@@ -186,7 +186,7 @@ services:
   # другого compose-файла — зависимость между файлами невозможна.
   # --------------------------------------------------------------------------
   caddy:
-    image: caddy:2-alpine
+    image: caddy:2.11.4-alpine
     restart: unless-stopped
     ports:
       - "80:80"
