@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import database
+from app.core.config import settings
 from app.modules.admin_module.dependencies import (
     require_admin,
     require_admin_or_service,
@@ -17,7 +18,7 @@ from app.modules.system import CRUD
 from .models import File
 from .schemas import FileCreate, FileRead
 from .services import s3_client
-from .utils import sanitize_filename
+from .utils import sanitize_filename, validate_upload_size
 
 router = APIRouter(prefix="/files", tags=["Files"])
 logger = logging.getLogger(__name__)
@@ -52,6 +53,9 @@ async def upload_file(
     file: UploadFile,
     note: Annotated[str | None, Form()] = None,
 ) -> File:
+    await validate_upload_size(
+        file, max_size_bytes=settings.file_upload_max_size_bytes
+    )
     filename = sanitize_filename(file.filename)
     link = await s3_client.create(
         file_obj=file.file,

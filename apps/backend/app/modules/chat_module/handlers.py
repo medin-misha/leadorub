@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Query, UploadFile, 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import database
+from app.core.config import settings
 from app.modules.admin_module.dependencies import require_admin, require_service
+from app.modules.file_module.utils import validate_upload_size
 from app.modules.telegram_module.utils.limits import MESSAGE_MAX_LENGTH
 
 from .schemas import ChatMessageRead, ConversationRead
@@ -85,6 +87,10 @@ async def reply(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Text must not exceed {MESSAGE_MAX_LENGTH} characters",
         )
+    if file is not None:
+        await validate_upload_size(
+            file, max_size_bytes=settings.chat_upload_max_size_bytes
+        )
     return await send_admin_reply_service(
         session, telegram_user_id, text=cleaned, file=file
     )
@@ -121,6 +127,9 @@ async def inbound_media(
     Бинарь идёт по HTTP (не через RMQ). Заливаем в S3, создаём File и строку
     chat_message(direction='user', file_id).
     """
+    await validate_upload_size(
+        file, max_size_bytes=settings.chat_upload_max_size_bytes
+    )
     try:
         return await store_inbound_media_service(
             session,

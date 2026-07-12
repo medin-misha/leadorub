@@ -4,6 +4,8 @@ from fastapi import APIRouter, Depends, Form, Query, Response, UploadFile, statu
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import database
+from app.core.config import settings
+from app.modules.file_module.utils import validate_upload_size
 from app.modules.admin_module.dependencies import (
     require_admin,
     require_admin_or_service,
@@ -135,6 +137,10 @@ async def send_newsletter(
     file — опциональное вложение (multipart). Логика — в services.
     """
     request = NewsletterRequest.model_validate_json(payload)
+    if file is not None:
+        await validate_upload_size(
+            file, max_size_bytes=settings.newsletter_upload_max_size_bytes
+        )
     return await send_newsletter_service(request=request, file=file, session=session)
 
 

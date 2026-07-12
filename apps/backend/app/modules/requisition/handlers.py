@@ -1,12 +1,16 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import database
 from app.modules.admin_module.dependencies import require_admin, require_service
+from app.modules.admin_module.services.login_rate_limit import (
+    LoginRateLimiter,
+    get_client_ip,
+)
 from app.modules.system import CRUD
 from app.modules.telegram_module.utils import parse_telegram_init_data
 
@@ -21,6 +25,12 @@ from .services import (
 router = APIRouter(prefix="/requisitions", tags=["requisitions"])
 
 SessionDep = Annotated[AsyncSession, Depends(database.get_session)]
+
+public_requisition_rate_limiter = LoginRateLimiter(
+    attempts=settings.public_requisition_rate_limit_attempts,
+    ip_attempts=settings.public_requisition_rate_limit_ip_attempts,
+    window_seconds=settings.public_requisition_rate_limit_window_seconds,
+)
 
 
 @router.post(
@@ -55,6 +65,7 @@ class RequisitionPublicCreate(BaseModel):
 async def create_public_requisition(
     data: RequisitionPublicCreate,
     session: SessionDep,
+    request: Request,
     telegram_init_data: Annotated[str, Header(alias="X-Telegram-Init-Data")],
 ) -> Requisition:
     """Создание заявки из Client Mini App с проверкой подписи Telegram."""
@@ -78,6 +89,20 @@ async def create_public_requisition(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired Telegram initData",
+        )
+
+    client_ip = get_client_ip(
+        request, settings.admin_login_trusted_proxy_cidrs
+    )
+    retry_after = await public_requisition_rate_limiter.acquire(
+        client_ip=client_ip,
+        username=str(telegram_id),
+    )
+    if retry_after is not None:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many requisitions. Try again later.",
+            headers={"Retry-After": str(retry_after)},
         )
 
     requisition_data = RequisitionCreate(
