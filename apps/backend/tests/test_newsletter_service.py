@@ -5,7 +5,7 @@ from fastapi import HTTPException
 
 from app.core.config import settings
 from app.modules.system import CRUD
-from app.modules.rmq_module import rmq_publisher
+from app.modules.telegram_module.services import newsletter_service
 from app.modules.telegram_module.schemas import NewsletterRequest
 from app.modules.telegram_module.services.newsletter_service import send_newsletter
 from app.modules.telegram_module.utils.newsletter import build_newsletter_payload
@@ -17,7 +17,9 @@ class SendNewsletterTests(unittest.IsolatedAsyncioTestCase):
         session = MagicMock()
         with (
             patch.object(CRUD, "count", AsyncMock(return_value=0)),
-            patch.object(rmq_publisher, "publish", AsyncMock()) as publish,
+            patch.object(
+                newsletter_service, "enqueue_outbox_message", AsyncMock()
+            ) as publish,
         ):
             with self.assertRaises(HTTPException) as ctx:
                 await send_newsletter(request=request, file=None, session=session)
@@ -35,7 +37,9 @@ class SendNewsletterTests(unittest.IsolatedAsyncioTestCase):
     async def test_text_over_limit_raises_400_and_does_not_publish(self) -> None:
         request = NewsletterRequest.model_validate({"text": "a" * 1025})
         session = MagicMock()
-        with patch.object(rmq_publisher, "publish", AsyncMock()) as publish:
+        with patch.object(
+            newsletter_service, "enqueue_outbox_message", AsyncMock()
+        ) as publish:
             with self.assertRaises(HTTPException) as ctx:
                 await send_newsletter(request=request, file=None, session=session)
             self.assertEqual(ctx.exception.status_code, 400)
@@ -47,7 +51,9 @@ class SendNewsletterTests(unittest.IsolatedAsyncioTestCase):
         with (
             patch.object(CRUD, "count", AsyncMock(return_value=3)),
             patch.object(CRUD, "get_column", AsyncMock(return_value=[10, 20, 30])),
-            patch.object(rmq_publisher, "publish", AsyncMock()) as publish,
+            patch.object(
+                newsletter_service, "enqueue_outbox_message", AsyncMock()
+            ) as publish,
         ):
             result = await send_newsletter(request=request, file=None, session=session)
 
@@ -57,6 +63,7 @@ class SendNewsletterTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(result["broadcast_id"])
         publish.assert_awaited_once()
         kwargs = publish.await_args.kwargs
+        self.assertIs(publish.await_args.args[0], session)
         self.assertEqual(kwargs["event"], "telegram.newsletter")
         self.assertEqual(kwargs["queue_name"], "telegram_notifications")
         self.assertEqual(kwargs["routing_key"], "telegram_notifications")
@@ -81,7 +88,9 @@ class SendNewsletterChunkingTests(unittest.IsolatedAsyncioTestCase):
             patch.object(settings, "newsletter_chunk_size", 500),
             patch.object(CRUD, "count", AsyncMock(return_value=len(chat_ids))),
             patch.object(CRUD, "get_column", AsyncMock(return_value=chat_ids)),
-            patch.object(rmq_publisher, "publish", AsyncMock()) as publish,
+            patch.object(
+                newsletter_service, "enqueue_outbox_message", AsyncMock()
+            ) as publish,
         ):
             result = await send_newsletter(request=request, file=None, session=session)
 

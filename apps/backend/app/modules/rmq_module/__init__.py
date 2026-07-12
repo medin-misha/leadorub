@@ -19,6 +19,7 @@ from .services import (
     rmq_registry,
     rmq_runtime,
     register_consumer,
+    enqueue_outbox_message,
 )
 
 __all__: list[str] = [
@@ -42,4 +43,5 @@ __all__: list[str] = [
     "rmq_settings",
     "shutdown_rmq_runtime",
     "startup_rmq_runtime",
+    "enqueue_outbox_message",
 ]

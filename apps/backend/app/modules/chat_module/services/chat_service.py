@@ -3,9 +3,8 @@
 Направления:
 - ВХОДЯЩЕЕ (пользователь → backend): `store_inbound_message` вызывается из
   RMQ-consumer и просто пишет строку `direction='user'`.
-- ИСХОДЯЩЕЕ (админ → пользователь): `send_admin_reply` пишет строку
-  `direction='admin'` И публикует сообщение боту через существующую очередь
-  уведомлений `telegram_notifications` (её слушает notification_module бота).
+- ИСХОДЯЩЕЕ (админ → пользователь): `send_admin_reply` атомарно пишет строку
+  `direction='admin'` и outbox-событие для очереди `telegram_notifications`.
 - Чтение: `list_conversations` (список диалогов + непрочитанные),
   `get_messages` (тред), `mark_read` (сброс непрочитанных).
 """
@@ -20,7 +19,7 @@ from app.modules.file_module.models import File
 from app.modules.file_module.schemas import FileCreate
 from app.modules.file_module.services import s3_client
 from app.modules.file_module.utils import sanitize_filename
-from app.modules.rmq_module import rmq_publisher
+from app.modules.rmq_module import enqueue_outbox_message
 from app.modules.system import CRUD
 from app.modules.telegram_module.models import TelegramUser
 
@@ -140,10 +139,8 @@ async def send_admin_reply(
     notification_module бота: он сам скачает файл по `file_id` из бэкенда и
     отправит фото/документ.
 
-    Порядок важен: сначала (заливаем файл и) создаём строку (flush, без commit),
-    затем публикуем. Если публикация упадёт — исключение пробросится, get_session
-    откатит несозданную строку, и «сохранённого, но не доставленного» ответа не
-    будет.
+    Сообщение и outbox-событие создаются в одной DB-транзакции. Publisher увидит
+    событие только после commit и безопасно повторит доставку при сбое RabbitMQ.
     """
     # telegram_id нужен, чтобы бот знал, кому слать сообщение.
     telegram_id = (
@@ -178,7 +175,8 @@ async def send_admin_reply(
     payload: dict = {"chat_ids": [telegram_id], "message": text}
     if file_record is not None:
         payload["file_id"] = file_record.id
-    await rmq_publisher.publish(
+    await enqueue_outbox_message(
+        session,
         event=NOTIFICATION_EVENT,
         payload=payload,
         queue_name=NOTIFICATION_QUEUE,

@@ -10,9 +10,9 @@ Support chat between bot users and administrators. Stores the message history an
   `direction='user'`.
 - Inbound media (user → backend): receive `POST /inbound-media` (HTTP, the bot downloaded
   the file), upload to S3 (`file_module`) and persist `direction='user'` with `file_id`.
-- Outbound (admin → user): persist `direction='admin'` (with optional `file_id`) AND publish
-  a notification to the existing `telegram_notifications` queue (delivered by the bot's
-  `notification_module`, which downloads the file by `file_id` and sends photo/document).
+- Outbound (admin → user): persist `direction='admin'` (with optional `file_id`) and enqueue
+  an outbox notification in the same DB transaction. The outbox runtime later publishes to
+  `telegram_notifications` after commit.
 - Read APIs for the admin panel: conversation list (with unread counts), thread, mark-read.
 
 ## Layout
@@ -52,8 +52,7 @@ consumer only starts if `rabbitmq_consumer_enabled=true` and `amqp_url` is set.
   `id > after_id` (polling). `ChatMessageRead` includes `file_id`/`file_name` for attachments.
 - `POST /conversations/{telegram_user_id}/reply` (`require_admin`) — `multipart/form-data`
   with optional `text` + optional `file` (text OR file required) → `ChatMessageRead`. Stores
-  the file (S3) if present, creates the admin row, THEN publishes; publish failure propagates
-  so `get_session` rolls the row back.
+  the file (S3) if present, then creates the admin row and outbox event atomically.
 - `POST /conversations/{telegram_user_id}/read` (`require_admin`) → `{status, updated}`.
 - `POST /inbound-media` (`require_service`) — `multipart/form-data`: `file`, `telegram_id`,
   optional `tg_message_id`, optional `caption`. Called by the bot when a user sends a
@@ -61,8 +60,8 @@ consumer only starts if `rabbitmq_consumer_enabled=true` and `amqp_url` is set.
   over HTTP here (not RMQ); text still goes via the `telegram_support_in` queue.
 
 ## Rules for agents
-- Keep handlers thin; logic in `services/`. Never import `aio-pika` directly — only
-  `rmq_publisher` / `register_consumer`.
+- Keep handlers thin; logic in `services/`. Never import `aio-pika` directly — use
+  `enqueue_outbox_message` for transactional events or public RMQ module exports.
 - Keep the inbound/outbound queue+event constants in sync with the bot and the spec
   (`docs/specs/2026-06-23-support-chat-design.md`).
 - After API/model changes, run `uv run alembic revision --autogenerate` and update this

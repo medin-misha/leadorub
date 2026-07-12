@@ -8,6 +8,7 @@
 
 - подключения к RabbitMQ;
 - публикации сообщений через стабильный API;
+- атомарной постановки бизнес-событий в transactional outbox;
 - регистрации consumer'ов очередей из бизнес-модулей;
 - запуска фоновых listeners при старте FastAPI;
 - предоставления RMQ health/registration endpoints;
@@ -30,7 +31,7 @@ RabbitMQ не перенесён в `system`, потому что это не ge
 Предпочтительно импортировать публичные экспорты:
 
 ```python
-from app.modules.rmq_module import RMQMessage, register_consumer, rmq_publisher
+from app.modules.rmq_module import RMQMessage, enqueue_outbox_message, register_consumer
 from app.modules.rmq_module import startup_rmq_runtime, shutdown_rmq_runtime
 ```
 
@@ -50,6 +51,7 @@ from app.modules.rmq_module import startup_rmq_runtime, shutdown_rmq_runtime
 - `RMQConfigurationError`
 - `register_consumer(...)`
 - `rmq_publisher`
+- `enqueue_outbox_message(...)`
 - `rmq_registry`
 - `rmq_runtime`
 - `rmq_settings`
@@ -74,6 +76,10 @@ rabbitmq_prefetch_count=10
 rabbitmq_consumer_enabled=true
 rabbitmq_publish_timeout=5
 rabbitmq_reconnect_interval=5
+rabbitmq_outbox_poll_interval=1
+rabbitmq_outbox_batch_size=100
+rabbitmq_outbox_lease_seconds=60
+rabbitmq_outbox_retry_max_seconds=300
 rabbitmq_debug_endpoints_enabled=false
 ```
 
@@ -81,7 +87,7 @@ rabbitmq_debug_endpoints_enabled=false
 
 - если `rabbitmq_enabled=false`, built-in модуль считается выключенным;
 - если `rabbitmq_enabled=true`, но `amqp_url` не задан, publish/consume использовать нельзя;
-- если consumer-регистраций нет, lifecycle не стартует RMQ runtime на startup;
+- outbox publisher запускается независимо от наличия consumer-регистраций;
 - `POST /api/rmq/publish` и `POST /api/rmq/consume` доступны только в том случае, если глобальный режим отладки `debug` равен `true` **и** отладочные ручки дополнительно включены флагом `rabbitmq_debug_endpoints_enabled=true`. В иных случаях данные эндпоинты возвращают ошибку `404 Not Found`.
 
 ## Lifecycle
@@ -96,14 +102,35 @@ FastAPI startup/shutdown использует thin wrappers:
 Startup ведёт себя так:
 
 1. если модуль выключен, runtime пропускается;
-2. если consumer-регистраций нет, runtime пропускается;
-3. если consumers выключены флагом, runtime пропускается;
-4. если registrations есть, но `amqp_url` нет, выбрасывается `RMQConfigurationError`;
-5. иначе запускаются listener-task'и.
+2. если `amqp_url` отсутствует, выбрасывается `RMQConfigurationError`;
+3. запускается outbox publisher;
+4. если consumers включены и зарегистрированы, дополнительно запускаются listener-task'и.
 
 Это делает RMQ встроенной частью приложения, но не принуждает каждую инсталляцию шаблона иметь живой RabbitMQ.
 
 ## Публикация Из Бизнес-Модуля
+
+Если событие зависит от данных текущей DB-транзакции, используй outbox. Вызов
+добавляет строку без `commit`: request dependency фиксирует бизнес-данные и
+событие одной транзакцией.
+
+```python
+await enqueue_outbox_message(
+    session,
+    event="telegram.user.created",
+    payload={"telegram_id": 123456},
+    exchange_name="app.events",
+    exchange_type="direct",
+    routing_key="telegram.user.created",
+)
+```
+
+Publisher арендует committed-строки через `FOR UPDATE SKIP LOCKED`. После ошибки
+строка возвращается в `pending` с экспоненциальной задержкой; протухшая аренда
+подхватывается после падения процесса. Семантика доставки — `at-least-once`:
+повтор использует тот же `message_id`, поэтому consumer должен быть идемпотентным.
+
+Для событий, не связанных с DB-транзакцией, остаётся прямой publisher:
 
 Используй общий publisher вместо прямой работы с `aio-pika`:
 

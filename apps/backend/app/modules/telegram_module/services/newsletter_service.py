@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.modules.system import CRUD
-from app.modules.rmq_module import rmq_publisher
+from app.modules.rmq_module import enqueue_outbox_message
 from app.modules.file_module.models import File
 from app.modules.file_module.schemas import FileCreate
 from app.modules.file_module.services import s3_client
@@ -110,7 +110,8 @@ async def send_newsletter(
             chunk_index=chunk_index,
             chunk_total=chunk_total,
         )
-        await rmq_publisher.publish(
+        await enqueue_outbox_message(
+            session,
             event=NEWSLETTER_EVENT,
             payload=payload,
             queue_name=NEWSLETTER_QUEUE,

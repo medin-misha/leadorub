@@ -24,6 +24,11 @@ It remains a dedicated first-party module in `app/modules/` and should not be co
 - Keep the public message envelope backward-compatible.
 - Do not add ad hoc retry or DLQ behavior in feature modules.
 - Keep app-level startup/shutdown wiring in `app/lifecycle.py`, not in feature modules.
+- DB-backed business events must use `enqueue_outbox_message(session, ...)` so the event
+  and domain rows commit atomically. Direct publish remains valid for diagnostics and
+  events that do not depend on a DB transaction.
+- Outbox delivery is at-least-once. Preserve the stored `message_id` across retries and
+  keep consumers idempotent; do not claim exactly-once delivery.
 
 ## Ownership Boundaries
 
@@ -31,6 +36,7 @@ This module owns:
 
 - RabbitMQ connection management;
 - message publishing;
+- transactional outbox persistence and dispatch lifecycle;
 - consumer registration;
 - topology declaration;
 - RMQ-specific config projection;

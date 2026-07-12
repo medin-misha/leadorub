@@ -333,10 +333,10 @@ Flow (`services/newsletter_service.py`): validate (text OR file required) →
 (`s3_client` + `File`) capturing `File.id` → `CRUD.get_column(TelegramUser,
 TelegramUser.telegram_id, ...)` → generate one `broadcast_id` (`uuid4`) → split recipients
 into chunks of `settings.newsletter_chunk_size` (default 500, ENV `newsletter_chunk_size`)
-→ publish ONE RMQ message **per chunk** (`ceil(N / chunk_size)` messages, all sharing the
-same `broadcast_id`).
+→ enqueue ONE outbox row **per chunk** in the request transaction (`ceil(N / chunk_size)`
+rows, all sharing the same `broadcast_id`). The outbox runtime publishes only after commit.
 
-Published message (`rmq_publisher.publish`): event `telegram.newsletter`, queue
+Published message (`enqueue_outbox_message`): event `telegram.newsletter`, queue
 `telegram_notifications`, routing key `telegram_notifications`, exchange `app.events`
 (direct). Payload: `{ chat_ids: list[int], message: str|None, use_buttons:
 "INLINE"|"REPLY"|null, buttons: [{text,url?,callback_data?}]|null, file_id: int|null,
@@ -352,4 +352,5 @@ window stays small and well within RabbitMQ `consumer_timeout` (30 min). Without
 broadcast would exceed the timeout → redelivery → the whole audience duplicated.
 
 Recipient filtering reuses `CRUD` (`count` / `get_column` with the same `search`/`field`
-semantics as `GET /telegram/users`). No new DB model/migration.
+semantics as `GET /telegram/users`). Outbox rows share the transaction with the optional
+`File`, so consumers never observe an uncommitted or rolled-back `file_id`.

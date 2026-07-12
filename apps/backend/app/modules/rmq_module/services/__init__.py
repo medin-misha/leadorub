@@ -1,5 +1,6 @@
 from .client import RMQClient, rmq_client
 from .publisher import RMQPublisher, rmq_publisher
+from .outbox import OutboxPublisherRuntime, build_outbox_runtime, enqueue_outbox_message
 from .registry import (
     ConsumerRegistration,
     RMQConsumerRegistry,
@@ -16,10 +17,13 @@ __all__: list[str] = [
     "RMQClient",
     "RMQConsumerRegistry",
     "RMQPublisher",
+    "OutboxPublisherRuntime",
     "RMQRuntime",
     "register_consumer",
     "rmq_client",
     "rmq_publisher",
     "rmq_registry",
     "rmq_runtime",
+    "build_outbox_runtime",
+    "enqueue_outbox_message",
 ]

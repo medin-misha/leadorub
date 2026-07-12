@@ -3,7 +3,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi import HTTPException
 
-from app.modules.rmq_module import rmq_publisher
 from app.modules.system import CRUD
 from app.modules.chat_module.handlers import reply as reply_handler
 from app.modules.chat_module.schemas import SupportMessageRMQ
@@ -61,7 +60,9 @@ class SendAdminReplyTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch.object(CRUD, "create", AsyncMock()) as create,
-            patch.object(rmq_publisher, "publish", AsyncMock()) as publish,
+            patch.object(
+                chat_service, "enqueue_outbox_message", AsyncMock()
+            ) as publish,
         ):
             await send_admin_reply(session, telegram_user_id=1, text="hello")
 
@@ -74,6 +75,7 @@ class SendAdminReplyTests(unittest.IsolatedAsyncioTestCase):
 
         publish.assert_awaited_once()
         kwargs = publish.await_args.kwargs
+        self.assertIs(publish.await_args.args[0], session)
         self.assertEqual(kwargs["queue_name"], "telegram_notifications")
         self.assertEqual(kwargs["routing_key"], "telegram_notifications")
         self.assertEqual(kwargs["exchange_name"], "app.events")
@@ -85,7 +87,9 @@ class SendAdminReplyTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch.object(CRUD, "create", AsyncMock()) as create,
-            patch.object(rmq_publisher, "publish", AsyncMock()) as publish,
+            patch.object(
+                chat_service, "enqueue_outbox_message", AsyncMock()
+            ) as publish,
         ):
             with self.assertRaises(HTTPException) as ctx:
                 await send_admin_reply(session, telegram_user_id=1, text="hello")
@@ -94,15 +98,15 @@ class SendAdminReplyTests(unittest.IsolatedAsyncioTestCase):
         create.assert_not_awaited()
         publish.assert_not_awaited()
 
-    async def test_publish_failure_propagates_after_create(self) -> None:
-        # Если публикация падает — исключение пробрасывается (get_session откатит строку).
+    async def test_outbox_failure_propagates_after_create(self) -> None:
+        # Ошибка записи outbox откатывает её вместе с chat_message.
         session = _session_returning_scalar(555)
 
         with (
             patch.object(CRUD, "create", AsyncMock()) as create,
             patch.object(
-                rmq_publisher,
-                "publish",
+                chat_service,
+                "enqueue_outbox_message",
                 AsyncMock(side_effect=RuntimeError("broker down")),
             ),
         ):
@@ -123,7 +127,9 @@ class SendAdminReplyTests(unittest.IsolatedAsyncioTestCase):
             patch.object(
                 CRUD, "create", AsyncMock(side_effect=[file_rec, message])
             ) as create,
-            patch.object(rmq_publisher, "publish", AsyncMock()) as publish,
+            patch.object(
+                chat_service, "enqueue_outbox_message", AsyncMock()
+            ) as publish,
         ):
             await send_admin_reply(
                 session, telegram_user_id=1, text=None, file=_upload_file()

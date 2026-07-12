@@ -25,6 +25,7 @@ class RMQPublisher:
         source: str | None = None,
         correlation_id: str | None = None,
         exchange_type: str | None = None,
+        message_id: str | None = None,
     ) -> RMQMessage:
         target_exchange = exchange_name or self.default_exchange_name
         target_exchange_type = exchange_type or self.default_exchange_type
@@ -35,6 +36,7 @@ class RMQPublisher:
             payload=payload,
             source=source or settings.project_name,
             correlation_id=correlation_id,
+            **({"message_id": message_id} if message_id is not None else {}),
         )
 
         if target_queue is not None:

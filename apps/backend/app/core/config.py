@@ -58,6 +58,10 @@ class MainSettings(BaseSettings):
     rabbitmq_consumer_enabled: bool = True
     rabbitmq_publish_timeout: int = Field(default=5, ge=1)
     rabbitmq_reconnect_interval: int = Field(default=5, ge=1)
+    rabbitmq_outbox_poll_interval: float = Field(default=1.0, gt=0)
+    rabbitmq_outbox_batch_size: int = Field(default=100, ge=1)
+    rabbitmq_outbox_lease_seconds: int = Field(default=60, ge=5)
+    rabbitmq_outbox_retry_max_seconds: int = Field(default=300, ge=1)
     rabbitmq_debug_endpoints_enabled: bool = False
 
     # Storage
