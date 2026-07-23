@@ -128,6 +128,50 @@ async def bulk_create_telegram_users(
     return telegram_users
 
 
+async def set_user_state(
+    telegram_id: int,
+    state: str | None,
+    session: AsyncSession,
+) -> UserStats:
+    """
+    Выставляет `user_stats.state` пользователя по его Telegram ID.
+
+    Сервисный вызов бота (X-Service-Token): бот адресует пользователя
+    `telegram_id`, а не внутренним id UserStats. Состояния именованные
+    (например, `persona_start`): позиция пользователя в воронке хранится
+    в backend, бот остаётся тонким транспортом без собственного хранилища.
+    """
+    try:
+        result = await session.execute(
+            select(TelegramUser).where(TelegramUser.telegram_id == telegram_id)
+        )
+        telegram_user = result.scalars().first()
+
+        if telegram_user is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"TelegramUser with telegram_id={telegram_id} not found.",
+            )
+
+        stats = telegram_user.user_stats
+        if stats is None:
+            # Композитная регистрация всегда создаёт UserStats; ветка защищает
+            # от пользователей, заведённых в обход неё (например, вручную).
+            stats = UserStats(telegram_user_id=telegram_user.id, state=state)
+            session.add(stats)
+        else:
+            stats.state = state
+
+        await session.flush()
+        await session.refresh(stats)
+    except HTTPException:
+        raise
+    except Exception as err:
+        DBErrorHandler.handle(err=err, model=UserStats, action="updating state of")
+    else:
+        return stats
+
+
 async def login_telegram_user(
     telegram_id: int,
     session: AsyncSession,

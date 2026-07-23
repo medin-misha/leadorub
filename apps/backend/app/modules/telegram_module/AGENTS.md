@@ -78,6 +78,7 @@ Important files:
 - `models/telegram_user.py`
 - `models/user_profile.py`
 - `models/user_stats.py`
+- `models/drip.py` — `DripNewsletter` (drip rule) and `DripNewsletterSend` (per-user send log)
 
 Agent expectations:
 
@@ -195,6 +196,12 @@ Important fields:
 - `last_seen_at` — last time the user touched the bot; has `server_default=now()` and is updated on login
 - `source` — acquisition source (deep-link payload, UTM, etc.)
 - `state` — current dialog/FSM state of the user (free-form string)
+- `state_changed_at` — UTC moment of the last ACTUAL `state` value change. Maintained by a
+  SQLAlchemy attribute listener on `UserStats.state` (`active_history=True`) in
+  `models/user_stats.py` — NOT by `onupdate` — so any write path (service, generic PATCH)
+  stamps it, and re-assigning the same value does not bump it. Drip newsletters count
+  days from this timestamp; the composite index `ix_userstats_state_changed`
+  (`state`, `state_changed_at`) serves the sweep query.
 
 Relationship rules:
 
@@ -249,6 +256,8 @@ If you change login semantics, document whether it is still read-plus-touch or b
 Important behavior in `handlers.py`:
 
 - `POST /telegram/login` logs in an existing Telegram user by `telegram_id`
+- `PUT /telegram/state` sets the named funnel state (`user_stats.state`) by `telegram_id`;
+  creates the stats row defensively if it is missing, returns `404` for unknown users
 - `POST /telegram/users` accepts the composite `TelegramUserRegister` body, is idempotent, and returns `201` for new rows, `200` for existing rows
 - `POST /telegram/users/bulk` accepts a list of `TelegramUserRegister` and creates users + profiles + stats
 - `GET /telegram/users` and `GET /telegram/users/{id}` return `TelegramUserRead` with nested `user_profile` and `user_stats` (loaded via `lazy="selectin"`)
@@ -274,9 +283,10 @@ If handler behavior changes, keep response codes and idempotency rules explicit 
 All endpoints are gated by dependencies from `app.modules.admin_module.dependencies`:
 
 - `POST /telegram/login` → `require_service` (only the user bot, via `X-Service-Token`).
+- `PUT /telegram/state` → `require_service` (the bot moves users through funnel states).
 - `POST /telegram/users` → `require_admin_or_service` (bot registers users; admin panel also creates them).
-- Everything else (`users/bulk`, `GET`/`PATCH`/`DELETE` users, all `profile`/`stats`, `newsletter`)
-  → `require_admin` (Bearer JWT).
+- Everything else (`users/bulk`, `GET`/`PATCH`/`DELETE` users, all `profile`/`stats`, `newsletter`,
+  all `drip-newsletters`) → `require_admin` (Bearer JWT).
 
 When adding a new endpoint here, pick the matching gate explicitly via `dependencies=[Depends(...)]`.
 
@@ -354,3 +364,59 @@ broadcast would exceed the timeout → redelivery → the whole audience duplica
 Recipient filtering reuses `CRUD` (`count` / `get_column` with the same `search`/`field`
 semantics as `GET /telegram/users`). Outbox rows share the transaction with the optional
 `File`, so consumers never observe an uncommitted or rolled-back `file_id`.
+
+## Drip newsletters (state-triggered scheduled broadcasts)
+
+A drip rule (`DripNewsletter`) says: "user entered `trigger_state` → `days_offset` days
+later at `send_time` (wall time in `settings.drip_timezone`) send this content". Content
+fields mirror the regular newsletter (`text`, `use_buttons`, `buttons` JSON, `file_id`)
+and are delivered through the SAME `telegram.newsletter` RMQ contract — the bot needs no
+changes and cannot tell a drip from a manual broadcast.
+
+Schemas (`schemas/drip.py`): `DripNewsletterCreate` inherits `NewsletterContent`
+(extracted base of `NewsletterRequest` holding text/buttons + `_validate_buttons`), so
+button validation is identical everywhere. `DripNewsletterPatch` allows only
+`title`/`is_active` — content is immutable in v1 (recreate the rule instead; the send
+log is keyed by rule id and must stay honest).
+
+Admin endpoints (all `require_admin`):
+
+- `POST /telegram/drip-newsletters` — multipart like `/telegram/newsletter`
+  (`payload` JSON + optional `file`); same content gates (text or file required,
+  `MESSAGE_MAX_LENGTH`); S3 compensation on DB failure. → 201 `DripNewsletterRead`.
+- `GET /telegram/drip-newsletters?page&limit` — list with `sent_count` (single
+  outer-join GROUP BY over `DripNewsletterSend`).
+- `PATCH /telegram/drip-newsletters/{id}` — title / is_active only.
+- `DELETE /telegram/drip-newsletters/{id}` — deletes the rule, its send log
+  (CASCADE) and the attached `File` row; the S3 object is removed best-effort in a
+  background task after commit (mirrors `file_module` semantics).
+
+Delivery (`services/drip_sweep.py` + `tasks.py`): a TaskIQ cron task
+(`drip_newsletter_sweep`, `* * * * *`) runs `run_drip_sweep()`. Per active rule, in ONE
+transaction (opened via `database.sessionmaker()` — sanctioned non-request pattern):
+
+1. `compute_entry_windows(...)` inverts the due condition into UTC ranges over
+   `state_changed_at` (index-friendly; the entry-day window is capped at `due_at`
+   so `days_offset=0` users entering AFTER `send_time` are never sent retroactively).
+2. Candidate select: `state == trigger_state` AND `state_changed_at` in window AND
+   NOT EXISTS in `dripnewslettersend` — "still in state" + "once ever" semantics.
+3. Claim: `INSERT INTO dripnewslettersend ... ON CONFLICT (rule, user) DO NOTHING
+   RETURNING` — only returned users become recipients (concurrent sweeps are safe).
+4. Chunk by `newsletter_chunk_size` → `build_newsletter_payload` +
+   `enqueue_outbox_message` with the newsletter constants. `broadcast_id` is
+   `drip-{rule_id}-{uuid}` per rule per run: the bot's Redis dedup only guards RMQ
+   redelivery of a chunk; the once-ever guarantee lives in the DB unique constraint.
+
+INVARIANT: the send-log claim and the outbox enqueue MUST stay in the same
+transaction. Splitting them reintroduces either duplicates or silently lost sends.
+
+Behavioral notes: rules never fire retroactively (due time already past at rule
+creation → skipped); scheduler downtime is forgiven up to `drip_catchup_seconds`
+(default 6h), later — skipped; a user who left the state is skipped WITHOUT a log
+row, so re-entering the state grants a new chance until the first actual send.
+
+Runtime requirements: `taskiq_enabled=true` + the `backend_worker` and
+`backend_scheduler` compose services (infra). The scheduler needs
+`LabelScheduleSource` (added in `taskiq_module/scheduler.py`) to pick up the
+decorator-declared cron. Settings: `drip_enabled`, `drip_timezone` (validated
+`ZoneInfo` name), `drip_catchup_seconds`.

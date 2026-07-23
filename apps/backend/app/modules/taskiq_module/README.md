@@ -31,9 +31,15 @@
 Компоненты:
 
 - `AioPikaBroker` (RabbitMQ) — транспорт исполнения задач (`broker.py`);
-- `RedisScheduleSource` — хранилище расписаний (`services/source.py`);
+- `RedisScheduleSource` — хранилище ДИНАМИЧЕСКИХ расписаний, созданных через
+  `services/scheduling.py` (`services/source.py`);
+- `LabelScheduleSource` — источник СТАТИЧЕСКИХ cron-расписаний, объявленных прямо
+  в декораторе `@broker.task(schedule=[{"cron": ...}])`. Подключён в `scheduler.py`;
+  без него такие cron-таски (например, sweep капельных рассылок из
+  `telegram_module`) никогда не запустятся;
 - `RedisAsyncResultBackend` — хранилище результатов (подключается в `broker.py`);
-- `TaskiqScheduler` — собирается из брокера и источника расписаний (`scheduler.py`).
+- `TaskiqScheduler` — собирается из брокера и обоих источников расписаний
+  (`scheduler.py`); создаётся при `taskiq_enabled=true`.
 
 ## Конфигурация
 

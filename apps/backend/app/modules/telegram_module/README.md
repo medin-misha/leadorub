@@ -121,7 +121,10 @@ from app.modules.system.services.errors import DBErrorHandler
 - `telegram_user_id: int` - внешний ключ на `TelegramUser` (`ondelete="CASCADE"`, unique);
 - `last_seen_at: datetime | None` - последний заход; `server_default=now()`, обновляется при логине;
 - `source: str | None` - источник, из которого пришёл пользователь (deep-link payload, UTM и т.п.);
-- `state: str | None` - текущее состояние пользователя в диалоге бота (FSM-state).
+- `state: str | None` - текущее состояние пользователя в диалоге бота (FSM-state);
+- `state_changed_at: datetime | None` - момент последней фактической смены `state` (UTC).
+  Поддерживается listener'ом на атрибуте `state` (не `onupdate`): запись того же значения
+  метку не обновляет. От этой метки капельные рассылки отсчитывают дни.
 
 Правила связи:
 
@@ -192,6 +195,7 @@ Router находится в [handlers.py](handlers.py) и объявлен с �
 ### TelegramUser endpoints
 
 - `POST /api/telegram/login` - логин существующего пользователя по `telegram_id`;
+- `PUT /api/telegram/state` - сервисное обновление `user_stats.state` по `telegram_id` (для бота);
 - `POST /api/telegram/users` - атомарная идемпотентная регистрация (композитное тело);
 - `POST /api/telegram/users/bulk` - массовая регистрация (список композитных тел);
 - `GET /api/telegram/users/{id}` - пользователь по внутреннему `id` (с `user_profile` и `user_stats`);
@@ -313,3 +317,59 @@ Payload каждого сообщения, помимо `chat_ids` (получа
 **Зачем чанкование:** одно сообщение = один чанк (≤`chunk_size` получателей), поэтому окно
 неподтверждённого сообщения мало́ и заведомо укладывается в `consumer_timeout` RabbitMQ
 (30 мин). Иначе длинная рассылка превысила бы таймаут → редоставка → дубль всей аудитории.
+
+## Капельные рассылки (drip)
+
+Правило капельной рассылки: «пользователь вошёл в состояние `trigger_state` → через
+`days_offset` дней в `send_time` отправить сообщение». Контент (текст, файл,
+inline/reply-кнопки) — как у обычной рассылки; доставка идёт через тот же RMQ-контракт
+`telegram.newsletter`, поэтому бот ничего не знает о капельных рассылках.
+
+### Семантика (важно понимать при настройке)
+
+- **Отправляем только тем, кто ещё в состоянии.** Если пользователь успел перейти
+  в другое состояние до момента отправки — сообщение не уходит.
+- **Один раз на пару (правило, пользователь) — навсегда.** Лог отправок
+  (`dripnewslettersend`, unique по правилу+юзеру) не даёт отправить повторно даже
+  при повторном входе в состояние. Но: если пользователь вышел из состояния ДО
+  отправки (его пропустили без записи в лог), повторный вход даёт новый шанс.
+- **Время — в одном часовом поясе** (`drip_timezone`, по умолчанию `Europe/Kyiv`);
+  все получатели получают сообщение в один момент.
+- **Задним числом правило не срабатывает**: если due-момент пользователя уже прошёл
+  на момент создания правила — он пропускается навсегда. Частный случай
+  `days_offset=0`: вошедшие в состояние ПОСЛЕ `send_time` не получают сообщение.
+- **Окно догона** — `drip_catchup_seconds` (по умолчанию 6 часов): при простое
+  планировщика отправка «доедет» с опозданием в пределах окна, дольше — пропуск.
+- **Удаление правила стирает и его лог** (CASCADE): пересозданное правило может
+  отправить сообщение тем же людям повторно.
+- Контент правила в v1 не редактируется (только название и вкл/выкл) — правило
+  пересоздают, чтобы лог отправок оставался честным.
+
+### HTTP API (все — Bearer JWT админа)
+
+- `POST /telegram/drip-newsletters` — multipart: `payload` (JSON
+  `DripNewsletterCreate`: `title?`, `trigger_state`, `days_offset` 0..365,
+  `send_time` "HH:MM", `text?`, `use_buttons?`, `buttons?`) + опциональный `file`.
+  Валидация кнопок — та же, что у `NewsletterRequest` (общая база `NewsletterContent`).
+- `GET /telegram/drip-newsletters?page&limit` — список правил с `sent_count`.
+- `PATCH /telegram/drip-newsletters/{id}` — `title` / `is_active`.
+- `DELETE /telegram/drip-newsletters/{id}` — правило + лог + файл (S3 — best-effort
+  после коммита).
+
+### Как работает доставка
+
+Cron-таска TaskIQ `drip_newsletter_sweep` (раз в минуту, `tasks.py`) вызывает
+`run_drip_sweep()` (`services/drip_sweep.py`). Для каждого активного правила в одной
+транзакции: выборка кандидатов по индексу (`state`, `state_changed_at`) → claim
+через `INSERT ... ON CONFLICT DO NOTHING RETURNING` в лог → чанки по
+`newsletter_chunk_size` → outbox (`telegram.newsletter`). `broadcast_id` вида
+`drip-{rule_id}-{uuid}` — свой на каждый запуск: Redis-дедуп бота защищает только
+от редоставки RMQ, гарантия «один раз» — unique-констрейнт в БД.
+
+### Что нужно для работы
+
+- `taskiq_enabled=true` в `infra/.env`;
+- сервисы `backend_worker` и `backend_scheduler` из `docker-compose.apps.yml`
+  (worker исполняет sweep, scheduler кладёт его в очередь по cron);
+- настройки: `drip_enabled` (выключатель sweep), `drip_timezone`,
+  `drip_catchup_seconds`.

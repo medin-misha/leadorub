@@ -29,9 +29,15 @@ Three cooperating runtimes (separate OS processes in production):
 Components:
 
 - `AioPikaBroker` (RabbitMQ) — task execution transport (`broker.py`).
-- `RedisScheduleSource` — persistent schedule storage (`services/source.py`).
+- `RedisScheduleSource` — persistent schedule storage for DYNAMIC schedules
+  created via `services/scheduling.py` (`services/source.py`).
+- `LabelScheduleSource` — reads STATIC cron schedules declared inline in task
+  decorators (`@broker.task(schedule=[{"cron": ...}])`). Added in `scheduler.py`;
+  without it decorator-declared crons (e.g. `telegram_module`'s
+  `drip_newsletter_sweep`) never fire. First real consumer: drip newsletters.
 - `RedisAsyncResultBackend` — task result storage (attached in `broker.py`).
-- `TaskiqScheduler` — built from broker + schedule source (`scheduler.py`).
+- `TaskiqScheduler` — built from broker + both schedule sources (`scheduler.py`);
+  constructed when `taskiq_settings.enabled` is true (the label source needs no Redis).
 
 ## Hard Rules
 

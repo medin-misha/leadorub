@@ -1,9 +1,9 @@
-from ..schemas.newsletter import NewsletterRequest
+from ..schemas.newsletter import NewsletterContent
 
 
 def build_newsletter_payload(
     chat_ids: list,
-    request: NewsletterRequest,
+    request: NewsletterContent,
     file_id: int | None,
     broadcast_id: str,
     chunk_index: int,

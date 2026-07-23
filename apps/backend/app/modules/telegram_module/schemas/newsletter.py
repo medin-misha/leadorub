@@ -60,14 +60,20 @@ class NewsletterButton(BaseModel):
     callback_data: str | None = None
 
 
-class NewsletterRequest(BaseModel):
-    filters: NewsletterFilters = Field(default_factory=NewsletterFilters)
+class NewsletterContent(BaseModel):
+    """Контент сообщения рассылки (текст + кнопки) без аудитории.
+
+    Общая база для обычной рассылки (NewsletterRequest) и капельной
+    (DripNewsletterCreate): валидация кнопок должна быть одинаковой везде,
+    где контент в итоге уезжает в build_newsletter_payload.
+    """
+
     text: str | None = None
     use_buttons: Literal["INLINE", "REPLY"] | None = None
     buttons: list[NewsletterButton] | None = None
 
     @model_validator(mode="after")
-    def _validate_buttons(self) -> "NewsletterRequest":
+    def _validate_buttons(self) -> "NewsletterContent":
         # buttons и use_buttons включаются только вместе
         if self.buttons and not self.use_buttons:
             raise ValueError("use_buttons must be set when buttons are provided")
@@ -94,6 +100,10 @@ class NewsletterRequest(BaseModel):
                             f"{CALLBACK_DATA_MAX_BYTES} bytes"
                         )
         return self
+
+
+class NewsletterRequest(NewsletterContent):
+    filters: NewsletterFilters = Field(default_factory=NewsletterFilters)
 
 
 class NewsletterResult(BaseModel):

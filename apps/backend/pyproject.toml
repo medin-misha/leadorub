@@ -19,6 +19,7 @@ dependencies = [
     "taskiq>=0.12.4",
     "taskiq-aio-pika>=0.6.0",
     "taskiq-redis>=1.0.0",
+    "tzdata>=2026.3",
     "uvicorn>=0.46.0",
 ]
 

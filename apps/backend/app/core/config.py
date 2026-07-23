@@ -92,6 +92,23 @@ class MainSettings(BaseSettings):
     # и публикует одно RMQ-сообщение на пачку (см. план chunking+idempotency).
     newsletter_chunk_size: int = Field(default=500, ge=1)
 
+    # Drip newsletters (капельные рассылки по состоянию пользователя).
+    # Требуют taskiq_enabled=true и запущенных процессов worker + scheduler.
+    drip_enabled: bool = True
+    # Единый часовой пояс, в котором трактуется send_time правил рассылки.
+    drip_timezone: str = "Europe/Kyiv"
+    # Окно «догона»: насколько поздно после due-времени ещё можно отправить
+    # (защита от простоя планировщика). Позже окна — отправка пропускается.
+    drip_catchup_seconds: int = Field(default=21600, ge=60)
+
+    @field_validator("drip_timezone")
+    @classmethod
+    def validate_drip_timezone(cls, v: str) -> str:
+        from zoneinfo import ZoneInfo
+
+        ZoneInfo(v)  # падаем на старте при опечатке в имени зоны
+        return v
+
     # Auth / Security
     # Bootstrap-админ создаётся при старте, если такого ещё нет (см. lifecycle).
     admin_username: str | None = None

@@ -1,3 +1,15 @@
-from .models import TelegramUser, UserProfile, UserStats
+from .models import (
+    DripNewsletter,
+    DripNewsletterSend,
+    TelegramUser,
+    UserProfile,
+    UserStats,
+)
 
-__all__: list[str] = ["TelegramUser", "UserProfile", "UserStats"]
+__all__: list[str] = [
+    "DripNewsletter",
+    "DripNewsletterSend",
+    "TelegramUser",
+    "UserProfile",
+    "UserStats",
+]

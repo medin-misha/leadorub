@@ -1,5 +1,11 @@
+from .drip import (
+    DripNewsletterCreate,
+    DripNewsletterPatch,
+    DripNewsletterRead,
+)
 from .newsletter import (
     NewsletterButton,
+    NewsletterContent,
     NewsletterFilters,
     NewsletterRequest,
     NewsletterResult,
@@ -18,6 +24,7 @@ from .user_profile import (
     UserProfileRegister,
 )
 from .user_stats import (
+    UserStateUpdate,
     UserStatsCreate,
     UserStatsPatch,
     UserStatsRead,
@@ -25,7 +32,11 @@ from .user_stats import (
 )
 
 __all__ = [
+    "DripNewsletterCreate",
+    "DripNewsletterPatch",
+    "DripNewsletterRead",
     "NewsletterButton",
+    "NewsletterContent",
     "NewsletterFilters",
     "NewsletterRequest",
     "NewsletterResult",
@@ -38,6 +49,7 @@ __all__ = [
     "UserProfilePatch",
     "UserProfileRead",
     "UserProfileRegister",
+    "UserStateUpdate",
     "UserStatsCreate",
     "UserStatsPatch",
     "UserStatsRead",
