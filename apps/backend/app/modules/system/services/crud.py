@@ -2,7 +2,6 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import DeclarativeBase
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import (
-    insert,
     select,
     Result,
     String,
@@ -17,7 +16,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm.mapper import Mapper
-from sqlalchemy.exc import IntegrityError, DataError, OperationalError
+from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel
 from datetime import datetime
 

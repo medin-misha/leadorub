@@ -2,7 +2,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.core import settings
 from app.core.database import database
 from app.modules.admin_module.services import bootstrap_admin
 from app.modules.rmq_module.runtime import shutdown_rmq_runtime, startup_rmq_runtime

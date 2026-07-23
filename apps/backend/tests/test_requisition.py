@@ -13,7 +13,6 @@ from app.modules.requisition.schemas import (
 )
 from app.modules.requisition.services.requisition_service import (
     create_requisition,
-    list_requisitions,
     update_requisition_status,
 )
 
