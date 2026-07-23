@@ -8,7 +8,15 @@ import KeyboardEditor from '@/components/newsletter/KeyboardEditor.vue'
 
 const emit = defineEmits(['submit']) // просим вьюху открыть диалог подтверждения
 
-const store = useNewsletterStore()
+// Компонент переиспользуется вкладкой капельных рассылок: она передаёт свой
+// стор с тем же контрактом полей (text/file/keyboard, canSend, keyboardValid…).
+// Без пропса — прежнее поведение (стор обычной рассылки).
+const props = defineProps({
+  store: { type: Object, default: null },
+  submitLabel: { type: String, default: 'Разослать' },
+})
+
+const store = props.store ?? useNewsletterStore()
 
 // v-model к стору через computed get/set.
 const text = computed({
@@ -41,14 +49,14 @@ const file = computed({
 
     <BaseFileInput v-model="file" label="Вложение" />
 
-    <KeyboardEditor />
+    <KeyboardEditor :store="store" />
 
     <div class="composer__actions">
       <BaseButton
         :disabled="!store.canSend || !store.keyboardValid || store.sending"
         @click="emit('submit')"
       >
-        Разослать
+        {{ submitLabel }}
       </BaseButton>
     </div>
   </section>

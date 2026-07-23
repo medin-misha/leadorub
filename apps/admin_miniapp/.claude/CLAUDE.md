@@ -175,6 +175,34 @@ Backend endpoints: `POST /api/auth/login`, `GET /api/auth/me`, `GET/POST /api/au
 toggle `is_active`, delete. Actions on your own account (deactivate/delete) are disabled
 in the UI and rejected by the backend (prevents self-lockout).
 
+## Drip newsletters tab («Автоворонка»)
+
+Create and manage state-triggered scheduled broadcasts: a rule = trigger state
+(`user_stats.state`), delay in days, send time (backend `drip_timezone`), plus the
+same message content as a regular newsletter.
+
+- `views/DripNewslettersView.vue` — trigger form (title, `trigger_state` text input
+  with a datalist of known states `persona_start`/`business_start`, `days_offset`
+  number, `send_time` `<input type="time">`) + reused `MessageComposer`, and the
+  rules list (schedule summary, `sent_count`, active badge, toggle, delete with a
+  native confirm that warns the send log is erased too).
+- `stores/dripNewsletters.js` — Pinia store. Its message-content fields and
+  getters/actions (`text`, `file`, `keyboard`, `canSend`, `keyboardValid`,
+  `keyboardError`, `canAddButton`, `setText`, …) intentionally mirror
+  `stores/newsletter.js` — that contract is what lets `MessageComposer`/
+  `KeyboardEditor` be reused via their optional `store` prop (they default to the
+  newsletter store when the prop is absent). `canSend` additionally requires a
+  valid trigger (`isTriggerValid`).
+- `utils/dripValidation.js` — pure trigger validation (`isTriggerStateValid`,
+  `isDaysOffsetValid` 0..365, `isSendTimeValid` strict `HH:MM`), covered by
+  `test/dripValidation.test.js`.
+- `api/dripNewsletters.js` — `list({page,limit})`, `create(formData)` (multipart
+  `payload` JSON + optional `file`, same shape as the newsletter but with `title`,
+  `trigger_state`, `days_offset`, `send_time` instead of `filters`), `patch(id, {title?, is_active?})`,
+  `remove(id)` against `/telegram/drip-newsletters` (`require_admin`).
+- v1 limitation: rule content is immutable — only title/active can be patched;
+  recreate the rule to change the message (backend keeps the send log per rule id).
+
 ## Chat tab
 
 Two-way support chat. A bot user types `/support` and their messages reach the backend;

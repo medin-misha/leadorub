@@ -3,7 +3,12 @@ import { useNewsletterStore } from '@/stores/newsletter'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import { CALLBACK_DATA_MAX_BYTES } from '@/constants'
 
-const store = useNewsletterStore()
+// Стор можно подменить (капельные рассылки) — контракт полей тот же.
+const props = defineProps({
+  store: { type: Object, default: null },
+})
+
+const store = props.store ?? useNewsletterStore()
 
 // Исчезающие поля inline-кнопки:
 // url показываем, пока callback_data пуст; callback_data — пока пуст url.
