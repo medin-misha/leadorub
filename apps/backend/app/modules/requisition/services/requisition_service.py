@@ -105,13 +105,8 @@ async def create_requisition(
 
     # Если заявка пришла из Mini App, отправляем мгновенное уведомление в бот
     if data.payload.get("source") == "miniapp":
-        type_ru = {
-            "consultation": "Консультация",
-            "community": "Вступление в сообщество",
-        }.get(requisition.type, requisition.type)
-        
-        user_msg = f"🎉 Ваша заявка на '{type_ru}' успешно отправлена и ожидает рассмотрения!"
-        
+        user_msg = "Приняли, ответим в ближайшее время."
+
         notification_payload = {
             "chat_ids": [user.telegram_id],
             "message": user_msg,

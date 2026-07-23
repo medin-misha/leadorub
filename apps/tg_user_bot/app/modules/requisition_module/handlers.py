@@ -1,7 +1,7 @@
 import logging
 
 from aiogram import F, Router
-from aiogram.filters import Command, StateFilter
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     CallbackQuery,
@@ -34,7 +34,7 @@ _GET_PHONE = "Пожалуйста, укажите ваш номер телеф�
 _GET_DESC = "Кратко опишите вашу цель/проблему для консультации:"
 _GET_EXP = "Укажите ссылку на ваши соцсети/профиль или кратко опишите ваш опыт:"
 _GET_MOTIVATION = "Опишите вашу мотивацию (почему хотите вступить в наше сообщество):"
-_SUCCESS = "🎉 Ваша заявка на '{product}' успешно отправлена и ожидает рассмотрения!"
+_SUCCESS = "Приняли, ответим в ближайшее время."
 _ERROR = "⚠️ Произошла ошибка при отправке заявки. Пожалуйста, попробуйте позже."
 
 
@@ -136,10 +136,7 @@ async def consultation_description(message: Message, state: FSMContext) -> None:
             payload=payload,
         )
         await state.clear()
-        await message.answer(
-            _SUCCESS.format(product="Консультация"),
-            reply_markup=ReplyKeyboardRemove(),
-        )
+        await message.answer(_SUCCESS, reply_markup=ReplyKeyboardRemove())
     except BackendClientError as exc:
         logger.error("Ошибка при отправке заявки на бэкенд: %s", exc)
         await message.answer(_ERROR)
@@ -206,10 +203,7 @@ async def community_motivation(message: Message, state: FSMContext) -> None:
             payload=payload,
         )
         await state.clear()
-        await message.answer(
-            _SUCCESS.format(product="Вступление в сообщество"),
-            reply_markup=ReplyKeyboardRemove(),
-        )
+        await message.answer(_SUCCESS, reply_markup=ReplyKeyboardRemove())
     except BackendClientError as exc:
         logger.error("Ошибка при отправке заявки на бэкенд: %s", exc)
         await message.answer(_ERROR)
