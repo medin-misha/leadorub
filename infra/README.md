@@ -3,7 +3,7 @@
 Здесь живут два compose-файла и конфиги вспомогательных сервисов.
 
 - `docker-compose.infra.yml` — внешние зависимости (БД, брокер, кэш, хранилище, мониторинг).
-- `docker-compose.apps.yml` — сами приложения из `apps/` (backend, telegram-боты).
+- `docker-compose.apps.yml` — сами приложения из `apps/` (backend, TaskIQ worker/scheduler, telegram-боты).
 - `.env` — единый файл окружения для всего проекта (не коммитится). Шаблон — `.env.example`.
 
 ## Состав инфраструктуры
@@ -172,3 +172,10 @@ ACME-challenge), для HTTP/3 — также UDP/443. Сертификаты л
   ```bash
   docker compose -f docker-compose.apps.yml exec backend uv run alembic upgrade head
   ```
+- **TaskIQ (worker + scheduler).** Сервисы `backend_worker` и `backend_scheduler`
+  в `docker-compose.apps.yml` собираются из того же образа, что backend, и нужны
+  для фоновых задач — в первую очередь для капельных рассылок
+  (`drip_newsletter_sweep`, cron раз в минуту). Оба требуют `taskiq_enabled=true`
+  в `.env`, иначе scheduler-процесс поднимется «пустым» и cron не сработает.
+  Scheduler должен работать ровно в одну реплику. Оба сервиса ждут healthy
+  backend (его entrypoint к этому моменту уже накатил миграции).

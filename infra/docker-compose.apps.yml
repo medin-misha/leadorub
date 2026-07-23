@@ -41,6 +41,43 @@ services:
       - leadorub
 
   # --------------------------------------------------------------------------
+  # TaskIQ worker — исполняет фоновые таски (в т.ч. sweep капельных рассылок).
+  # Тот же образ, что backend; ждём healthy backend, чтобы entrypoint API уже
+  # накатил миграции и worker не стартовал на старой схеме БД.
+  # --------------------------------------------------------------------------
+  backend_worker:
+    build:
+      context: ../apps/backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    # В runtime-образе нет uv — CLI taskiq доступен из .venv (он в PATH).
+    command: ["taskiq", "worker", "app.modules.taskiq_module.broker:broker"]
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - leadorub
+
+  # --------------------------------------------------------------------------
+  # TaskIQ scheduler — читает cron-расписания (LabelScheduleSource + Redis)
+  # и кладёт таски в очередь worker'а. РОВНО ОДНА реплика: дубль планировщика
+  # не сломает идемпотентность (claim в БД), но будет впустую жечь ресурсы.
+  # --------------------------------------------------------------------------
+  backend_scheduler:
+    build:
+      context: ../apps/backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    command: ["taskiq", "scheduler", "app.modules.taskiq_module.scheduler:scheduler"]
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - leadorub
+
+  # --------------------------------------------------------------------------
   # Telegram user bot — long polling. Токен берём из user_bot и маппим в TOKEN,
   # которую ждёт конфиг бота; backend доступен по имени сервиса.
   # --------------------------------------------------------------------------
