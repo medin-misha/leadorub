@@ -9,7 +9,11 @@ persistent business data belongs to the FastAPI backend.
 
 - `system` — backend authentication client, bounded in-memory auth cache,
   `login_required`, runtime update context, and system commands.
-- `tocka_zborki` — product funnel, training PDF, and Client MiniApp launch.
+- `persona` — DMCAGuardian `/start` funnel: guide PDF, video, contact
+  buttons, and the `persona_start` backend state. No router of its own.
+- `business` — DMCAGuardian agency funnel behind the `/start business` deep
+  link: guide PDF with caption, video, contact buttons, `business_start`
+  backend state. No router; `/start` routing lives in the system module.
 - `requisition_module` — bot-side requisition flows.
 - `support_module` — support FSM; text goes through RMQ and media through the
   authenticated backend HTTP endpoint.
@@ -59,7 +63,10 @@ Key settings:
 - `TOKEN` — required Telegram bot token;
 - `BACKEND_URL`, `BACKEND_API_PREFIX`, `BACKEND_REQUEST_TIMEOUT`;
 - `SERVICE_TOKEN` — shared server-to-server backend secret;
-- `CLIENT_MINIAPP_URL`, `TRAINING_GUIDE_PATH`;
+- `CLIENT_MINIAPP_URL`, `ADMIN_CONTACT_URL`;
+- `PERSONA_GUIDE_PATH`, `PERSONA_VIDEO_PATH` — persona funnel assets;
+- `BUSINESS_GUIDE_PATH`, `BUSINESS_VIDEO_PATH` — business funnel assets
+  (default to the persona files);
 - `AMQP_URL` and RabbitMQ runtime settings;
 - `redis_password`, host/port/db, and
   `newsletter_idempotency_ttl_seconds` for delivery deduplication;

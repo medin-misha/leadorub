@@ -27,15 +27,15 @@ from app.modules.system.auth.service import AuthenticationFlowError
 from app.modules.system.client import BackendClientError
 from app.modules.system.config import system_settings
 from app.modules.system.deep_link import parse_source
+from app.modules.business import BUSINESS_START_PAYLOAD
+from app.modules.business import run_start_funnel as run_business_start_funnel
+from app.modules.persona import run_start_funnel as run_persona_start_funnel
 from app.modules.system.messages import get_messages
-from app.modules.tocka_zborki.keyboards import get_main_menu_keyboard
-from app.modules.tocka_zborki.messages import get_messages as get_tocka_zborki_messages
 
 logger = logging.getLogger(__name__)
 
 router = Router(name="system")
 _MESSAGES = get_messages()
-_TOCKA_ZBORKI_MESSAGES = get_tocka_zborki_messages()
 
 
 @router.message(Command("start"))
@@ -60,10 +60,14 @@ async def start_command(
     source = parse_source(command.args)
     await _provision_on_start(message, source)
 
-    await message.answer(
-        text=_TOCKA_ZBORKI_MESSAGES["welcome"],
-        reply_markup=get_main_menu_keyboard(),
-    )
+    # Презентация /start принадлежит продуктовым воронкам: system отвечает
+    # только за провижининг и сброс FSM. Payload `business` ведёт в воронку
+    # для агентств, всё остальное (пустой /start, source_*) — в persona.
+    payload = (command.args or "").strip()
+    if payload == BUSINESS_START_PAYLOAD:
+        await run_business_start_funnel(message)
+    else:
+        await run_persona_start_funnel(message)
 
 
 async def _provision_on_start(message: Message, source: str | None) -> None:

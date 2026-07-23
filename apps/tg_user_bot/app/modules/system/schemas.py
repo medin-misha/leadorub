@@ -49,6 +49,13 @@ class TelegramUserLoginPayload(BaseModel):
     telegram_id: int
 
 
+class UserStatePayload(BaseModel):
+    """Payload сервисного обновления состояния диалога (`PUT /telegram/state`)."""
+
+    telegram_id: int
+    state: str | None = None
+
+
 class TelegramUserIdentityCreate(BaseModel):
     """Identity-часть composite payload регистрации (`telegram_user`)."""
 

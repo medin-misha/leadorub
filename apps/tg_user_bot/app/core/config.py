@@ -50,9 +50,29 @@ class MainSettings(BaseSettings):
         default="http://localhost:8081",
         validation_alias=AliasChoices("CLIENT_MINIAPP_URL", "client_miniapp_url"),
     )
-    training_guide_path: Path = Field(
+    # Ссылка на личный аккаунт админа для кнопки «Написать» (https://t.me/...).
+    # None — кнопка не показывается, чтобы не отправлять пользователя в никуда.
+    admin_contact_url: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("ADMIN_CONTACT_URL", "admin_contact_url"),
+    )
+    persona_guide_path: Path = Field(
         default=BASE_DIR / "assets" / "sila_tvorozhka.pdf",
-        validation_alias=AliasChoices("TRAINING_GUIDE_PATH", "training_guide_path"),
+        validation_alias=AliasChoices("PERSONA_GUIDE_PATH", "persona_guide_path"),
+    )
+    persona_video_path: Path = Field(
+        default=BASE_DIR / "assets" / "coala.mp4",
+        validation_alias=AliasChoices("PERSONA_VIDEO_PATH", "persona_video_path"),
+    )
+    # Ассеты воронки для агентств; пока отдельных материалов нет,
+    # по умолчанию переиспользуются файлы persona.
+    business_guide_path: Path = Field(
+        default=BASE_DIR / "assets" / "sila_tvorozhka.pdf",
+        validation_alias=AliasChoices("BUSINESS_GUIDE_PATH", "business_guide_path"),
+    )
+    business_video_path: Path = Field(
+        default=BASE_DIR / "assets" / "coala.mp4",
+        validation_alias=AliasChoices("BUSINESS_VIDEO_PATH", "business_video_path"),
     )
     amqp_url: str | None = Field(
         default=None,

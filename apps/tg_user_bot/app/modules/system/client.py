@@ -21,6 +21,8 @@ from .schemas import (
     TelegramUserCreatePayload,
     TelegramUserLoginPayload,
     TelegramUserRead,
+    UserStatePayload,
+    UserStatsRead,
 )
 
 logger = logging.getLogger(__name__)
@@ -77,6 +79,22 @@ class BackendClient:
             json_payload=payload.model_dump(mode="json", exclude_none=True),
         )
         return TelegramUserRead.model_validate(response_data)
+
+    async def set_user_state(
+        self,
+        telegram_id: int,
+        state: str | None,
+    ) -> UserStatsRead:
+        """Выставляет именованное состояние воронки пользователя в backend."""
+
+        payload = UserStatePayload(telegram_id=telegram_id, state=state)
+        response_data = await self._request(
+            method="PUT",
+            path="/telegram/state",
+            json_payload=payload.model_dump(mode="json"),
+            not_found_is_user_absence=True,
+        )
+        return UserStatsRead.model_validate(response_data)
 
     async def create_requisition(
         self,

@@ -25,9 +25,13 @@
 
 ## Текущий функционал
 
-В боте также подключена воронка фитнес-тренера «Точка Сборки»: `/start` показывает
-приветствие, выдаёт PDF-пособие по inline-кнопке, а затем открывает Mini App
-для записи на консультацию.
+В боте подключены две воронки DMCAGuardian: `/start` отправляет питч бесплатного
+гайда, PDF-файл, видео с кнопками связи («Написать» и «Оставить заявку» через
+Client MiniApp) и выставляет пользователю состояние `persona_start` в backend.
+Deep link `/start business` ведёт в аналогичную воронку для агентств
+(состояние `business_start`). Подробности — в
+[app/modules/persona/README.md](app/modules/persona/README.md) и
+[app/modules/business/README.md](app/modules/business/README.md).
 
 Сейчас в приложении подключены модули с разной ролью:
 
@@ -36,7 +40,8 @@
 - `notification_module` — RMQ-consumer, доставляющий пользователям сообщения и массовые рассылки от backend
 - `support_module` — чат пользователя с администратором, включая фото и документы
 - `requisition_module` — создание заявок из сценариев бота
-- `tocka_zborki` — продуктовая воронка, PDF-пособие и запуск Client MiniApp
+- `persona` — продуктовая воронка DMCAGuardian: гайд, видео и кнопки связи на `/start`
+- `business` — воронка DMCAGuardian для агентств на deep link `/start business`
 
 Системный модуль предоставляет базовые команды:
 
@@ -164,7 +169,11 @@ telegram_template/
 - `AUTH_CACHE_MAX_SIZE` — максимальный размер in-memory auth cache
 - `BOT_PARSE_MODE` — режим форматирования, по умолчанию `HTML`
 - `CLIENT_MINIAPP_URL` — HTTPS URL клиентского Mini App
-- `TRAINING_GUIDE_PATH` — путь к PDF-пособию; по умолчанию `assets/sila_tvorozhka.pdf`
+- `ADMIN_CONTACT_URL` — ссылка на аккаунт админа для кнопки «Написать»; без неё кнопка скрыта
+- `PERSONA_GUIDE_PATH` — путь к PDF-гайду; по умолчанию `assets/sila_tvorozhka.pdf`
+- `PERSONA_VIDEO_PATH` — путь к видео воронки; по умолчанию `assets/coala.mp4`
+- `BUSINESS_GUIDE_PATH`, `BUSINESS_VIDEO_PATH` — ассеты воронки для агентств;
+  по умолчанию те же файлы, что у persona
 - `DEBUG` — включает debug-only команды вроде `/usersysinfo`
 
 Важно:
@@ -222,7 +231,7 @@ telegram_template/
 
 Сейчас там явно регистрируются:
 
-- `system_router` и продуктовый `tocka_zborki_router`;
+- `system_router`;
 - инфраструктурный `rmq_router`;
 - опциональные `notification_router` и `support_router`;
 - `requisition_router`.
@@ -392,7 +401,7 @@ BACKEND_URL="http://localhost:8000/"
 SERVICE_TOKEN="shared-service-secret"
 BOT_PARSE_MODE="HTML"
 CLIENT_MINIAPP_URL="http://localhost:8081"
-TRAINING_GUIDE_PATH="assets/sila_tvorozhka.pdf"
+ADMIN_CONTACT_URL="https://t.me/your-admin-username"
 redis_password="shared-redis-password"
 ```
 
@@ -406,7 +415,9 @@ redis_password="shared-redis-password"
 - `SERVICE_TOKEN` — обязателен для защищённых server-to-server вызовов backend
 - `BOT_PARSE_MODE`
 - `CLIENT_MINIAPP_URL`
-- `TRAINING_GUIDE_PATH`
+- `ADMIN_CONTACT_URL` — без него не показывается кнопка «Написать»
+- `PERSONA_GUIDE_PATH`, `PERSONA_VIDEO_PATH` — пути к ассетам воронки
+- `BUSINESS_GUIDE_PATH`, `BUSINESS_VIDEO_PATH` — ассеты воронки для агентств
 - `redis_password` — включает идемпотентность рассылок через Redis
 
 ## Запуск проекта
