@@ -45,19 +45,13 @@ Registration happens as an import side-effect: `chat_module/__init__.py` imports
 consumer only starts if `rabbitmq_consumer_enabled=true` and `amqp_url` is set.
 
 ## Endpoints (prefix `/api/chat`)
-- `GET /conversations?search=&page=&limit=` (`require_admin`) → `ConversationRead[]` (recency
-  order; unread count via `count(*) FILTER (direction='user' AND NOT is_read)`).
-- `GET /conversations/{telegram_user_id}/messages?after_id=&limit=` (`require_admin`) →
-  `ChatMessageRead[]`. No `after_id` = last N (chronological). `after_id` set = only
-  `id > after_id` (polling). `ChatMessageRead` includes `file_id`/`file_name` for attachments.
-- `POST /conversations/{telegram_user_id}/reply` (`require_admin`) — `multipart/form-data`
-  with optional `text` + optional `file` (text OR file required) → `ChatMessageRead`. Stores
-  the file (S3) if present, then creates the admin row and outbox event atomically.
-- `POST /conversations/{telegram_user_id}/read` (`require_admin`) → `{status, updated}`.
-- `POST /inbound-media` (`require_service`) — `multipart/form-data`: `file`, `telegram_id`,
-  optional `tg_message_id`, optional `caption`. Called by the bot when a user sends a
-  photo/document; uploads to S3 and stores `direction='user'` with `file_id`. Binary goes
-  over HTTP here (not RMQ); text still goes via the `telegram_support_in` queue.
+Router `prefix="/chat"`. Admin endpoints (conversation list, thread, reply, mark-read) are
+gated by `require_admin`; the bot's media intake `POST /inbound-media` is gated by
+`require_service` (`X-Service-Token`). Inbound media binary goes over HTTP here (not RMQ);
+inbound text still arrives via the `telegram_support_in` queue.
+
+Full request/response contracts (paths, params, fields, types) live in a dedicated file.
+See [API contracts](API.md).
 
 ## Rules for agents
 - Keep handlers thin; logic in `services/`. Never import `aio-pika` directly — use
@@ -65,4 +59,4 @@ consumer only starts if `rabbitmq_consumer_enabled=true` and `amqp_url` is set.
 - Keep the inbound/outbound queue+event constants in sync with the bot and the spec
   (`docs/specs/2026-06-23-support-chat-design.md`).
 - After API/model changes, run `uv run alembic revision --autogenerate` and update this
-  file + `README.md`.
+  file.

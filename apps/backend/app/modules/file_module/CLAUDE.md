@@ -96,12 +96,13 @@ FastAPI router containing the endpoint routes.
 
 ## Handler Operational Contracts
 
+See [API contracts](API.md) for full endpoint contracts (methods, paths, auth, request and response bodies).
+
 ### `POST /api/files/`
 1. Normalizes the filename: `filename = file.filename or "unnamed"`.
 2. Calls `s3_client.create(file.file, filename, file.content_type)`. The `SpooledTemporaryFile` is streamed directly.
 3. Inserts metadata into PostgreSQL using `CRUD.create(...)` with the `File` model and a `FileCreate` schema.
 4. **Error handling**: If `CRUD.create(...)` raises a database exception, the handler catches it, triggers `s3_client.delete(link)` to prevent orphaned files in the S3 bucket, and propagates the exception.
-5. Returns `FileRead` with a `201 Created` status code.
 
 ### `GET /api/files/{id}`
 1. Queries the database using `CRUD.get(File, session, id=id)`. Throws a `404` error if the record does not exist.
@@ -113,7 +114,6 @@ The execution order is strict:
 1. Queries the database using `CRUD.get(File, session, id=id)` to obtain the record and extract the `link`.
 2. Deletes the database record: `session.delete(file_record)` and `session.flush()`.
 3. Deletes the object from the S3 bucket using `s3_client.delete(link)` inside a background task. If the S3 operation fails, it is logged as a warning, and the API request successfully completes.
-4. Returns `{"status": "ok"}`.
 
 **Rationale for Database → S3 order**:
 - If the database deletion fails, the file in the bucket remains fully intact and accessible; the state is consistent.
@@ -141,5 +141,5 @@ Prohibited updates:
 
 - When adding or modifying fields on the `File` model, update the corresponding Pydantic schemas and generate a new migration revision immediately: `uv run alembic revision --autogenerate -m "..."`.
 - When modifying exported primitives, update exports inside `file_module/__init__.py` and the general `app/modules/__init__.py` container.
-- When modifying the public behavior of `S3Client` or handlers, update both `README.md` and this file.
+- When modifying the public behavior of `S3Client` or handlers, update this file.
 - The `_key_from_link` parser relies on the URL structure `http(s)://{endpoint}/{bucket}/{key}`. If the S3 storage domain format changes, this helper must be updated.

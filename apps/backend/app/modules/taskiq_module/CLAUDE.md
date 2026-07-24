@@ -126,4 +126,4 @@ If scheduling is unavailable (taskiq disabled or no `redis_url`), helpers raise
 - Keep config projection in `config.py`; if a setting is added, update both
   `app/core/config.py` and `.env.example`.
 - If a change affects startup/shutdown, update `runtime.py` and `app/lifecycle.py` together.
-- If a change affects developer usage, update `README.md`.
+- HTTP endpoint contracts live in [API contracts](API.md); update it when endpoints change.

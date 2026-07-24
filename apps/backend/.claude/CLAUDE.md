@@ -1,136 +1,86 @@
-# Project Context
+# Leadorub Backend
 
-This section contains information about the specific business application built on top of this template.
+This section contains information about the Leadorub backend.
 
-## Service Description
-*The agent should look at the primary `README.md` under "Контекст проекта" for the actual business goals, key features, and environments of the service currently being built. Do not hardcode feature lists in this file.*
+# Template Documentation and Instructions for Agents
 
----
-
-# Template Documentation and Agent Instructions
-
-This repository is a modular FastAPI backend template designed for high performance, modular isolation, and scalability. All agents working in this codebase must strictly adhere to the guidelines below.
+This repository is a modular FastAPI backend template designed for high performance, module isolation, and scalability. All agents working with this codebase must strictly follow the rules below.
 
 ## Technology Stack
 
-- **Runtime**: Python 3.11+, package manager `uv` (mandatory for dependency sync).
-- **Web Framework**: FastAPI, Pydantic v2 (validation), Pydantic Settings (configuration).
-- **Database**: PostgreSQL, async SQLAlchemy 2.0 (asyncpg driver).
-- **Migrations**: Alembic (configured for async connection).
-- **Storage**: S3-compatible storage (MinIO / AWS S3) via `aiobotocore`.
-- **Message Broker**: RabbitMQ (AMQP) via `aio-pika`.
-
----
+* **Runtime**: Python 3.11+, with `uv` as the mandatory package manager for dependency synchronization.
+* **Web framework**: FastAPI, Pydantic v2 for validation, and Pydantic Settings for configuration.
+* **Database**: PostgreSQL with asynchronous SQLAlchemy 2.0 and the `asyncpg` driver.
+* **Migrations**: Alembic configured for asynchronous connections.
+* **Storage**: S3-compatible storage, such as MinIO or AWS S3, implemented through `aiobotocore` in `file_module`.
+* **Message broker**: RabbitMQ over AMQP through `aio-pika` in `rmq_module`.
+* **Deferred tasks**: Deferred tasks are implemented with TaskIQ in `taskiq_module`.
 
 ## Project Structure and Architecture Rules
 
-We enforce a strict modular architecture. There are three levels of responsibility:
+The project follows a strict modular architecture. There are three levels of responsibility:
 
-1. **Application Core (`app/core/`)** — Global settings, database engine creation, security primitives.
-2. **Lifecycle Orchestration (`app/lifecycle.py`)** — Handles startup/shutdown of shared external connections (S3, RabbitMQ workers). Do not put lifecycle code directly inside `main.py`.
-3. **Built-in Modules (`app/modules/`)** — Isolated domains containing their own APIs, models, schemas, and services.
+1. **Application core (`app/core/`)** — global settings, database engine creation, and security primitives.
+2. **Lifecycle orchestration (`app/lifecycle.py`)** — manages the startup and shutdown of shared external connections. Do not place lifecycle code directly in `main.py`.
+3. **Modules (`app/modules/`)** — isolated domains containing their own APIs, models, schemas, and services.
 
-### Core File Structure
+### Main File Structure
 
 ```text
-fastapi_template/
+backend/
 ├── alembic/                  # Database migration versions
 ├── app/                      # Application source code
 │   ├── api/
-│   │   └── router.py         # Main APIRouter including all module routers
-│   ├── core/                 # Global settings & process-level primitives
+│   │   └── router.py         # Main APIRouter that includes all module routers
+│   ├── core/                 # Global settings and process-level primitives
 │   │   ├── config.py         # Settings loader using pydantic-settings
-│   │   ├── database.py       # Async SQLAlchemy engine & session factory
-│   │   └── security.py       # Helper functions for authentication & encryption
-│   ├── lifecycle.py          # Unified startup/shutdown orchestration
-│   └── modules/              # Built-in and feature business modules
-│       ├── system/           # Core database model class, generic CRUD, & health checks
-│       ├── rmq_module/       # RabbitMQ publisher, consumer registry & lifecycle
-│       └── file_module/      # S3/MinIO file storage & PostgreSQL metadata sync
+│   │   ├── database.py       # Async SQLAlchemy engine and session factory
+│   │   └── security.py       # Authentication and encryption helper functions
+│   ├── lifecycle.py          # Unified startup and shutdown orchestration
+│   └── modules/              # Built-in and feature-specific business modules
+│       ├── system/           # Base database model, generic CRUD, and health checks
+│       ├── rmq_module/       # RabbitMQ publisher, consumer registry, and lifecycle
+│       ├── file_module/      # S3/MinIO file storage and PostgreSQL metadata synchronization
+│       └── taskiq_module/    # TaskIQ broker, scheduler, and deferred/cron task discovery
 ├── main.py                   # Main FastAPI entry point
-├── pyproject.toml            # Project metadata & dependencies
-└── uv.lock                   # Lockfile for dependency tree
+├── pyproject.toml            # Project metadata and dependencies
+└── uv.lock                   # Dependency tree lockfile
 ```
-
-### Module Layout Rule
-
-Every module under `app/modules/` must follow this standardized directory structure:
-
-```text
-app/modules/module_name/
-├── handlers.py               # API Router and endpoint functions (routers)
-├── models/                   # SQLAlchemy ORM models
-├── schemas/                  # Pydantic models (DTOs)
-├── services/                 # Core business logic (service layer)
-├── utils/                    # Module-specific helper functions
-├── AGENTS.md/CLAUDE.md       # Local module instructions for AI agents (Always in English)
-└── README.md                 # Local module documentation (Always in Russian)
-```
-
----
 
 ## Built-In Infrastructure Modules
 
-The template provides three built-in modules in `app/modules/`. Under no circumstances should these modules be duplicated or bypassed.
+The template provides four built-in modules in `app/modules/`. Under no circumstances may these modules be duplicated or bypassed.
 
-### 1. System Module (`app/modules/system`)
-Provides core model architecture and database patterns:
-- **Base Model** (`Base` in `models/base.py`): Sets the primary key `id: Mapped[int]` for all models in the system.
-- **Timestamp Mixin** (`TimestampMixin` in `models/base.py`): Adds `created_at` and `updated_at` timestamps managed at the database level.
-- **Generic CRUD Service** (`CRUD` in `services/crud.py`): Implements standardized methods for creating (`create`, `bulk_create`), reading (`get` with pagination, sorting, text search, and exact field filtering), patching (`patch`), and deleting (`delete`) models.
-- **Database Error Handler** (`DBErrorHandler` in `services/errors.py`): Captures SQLAlchemy exceptions, executes necessary rollbacks, and maps them to HTTPExceptions (e.g., translating user constraint errors to 400 Bad Request and database connection losses to 503 Service Unavailable).
-- **Health Checks**: Provides endpoints `GET /api/system/health` and `GET /api/system/health/db`.
+### 1. System Module (`app/modules/system/CLAUDE.md`)
 
-### 2. File Module (`app/modules/file_module`)
-Handles file storage pipeline:
-- **S3 Storage Client** (`S3Client` in `services/s3_client.py`): Asynchronously streams files directly to S3-compatible buckets (MinIO) using `SpooledTemporaryFile` to prevent high memory allocation. Filenames are randomized via UUID.
-- **Metadata Management**: Stores file metadata (original filename, public link, comment) in the `files` PostgreSQL table.
-- **API Endpoints**:
-  - `POST /api/files/` — Uploads a file. If the PostgreSQL transaction fails, the file is automatically purged from the S3 bucket to prevent orphaned objects.
-  - `GET /api/files/{id}` — Downloads the file as a `StreamingResponse` with correct character encoding support in the `Content-Disposition: attachment` header. **Security hardening:** always sends `X-Content-Type-Options: nosniff`, and downgrades MIME types that browsers could render as an active top-level document (executing an embedded `<script>` → Stored XSS) to `application/octet-stream`. The blocked types live in the `DANGEROUS_INLINE_MIME_TYPES` set in `handlers.py` (`image/svg+xml`, `text/html`, `application/xhtml+xml`, `text/xml`, `application/xml`).
-  - `DELETE /api/files/{id}` — Deletes the database record transactionally first, then removes the corresponding S3 object (best-effort).
+Provides the core model architecture and database interaction patterns.
 
-### 3. RMQ Module (`app/modules/rmq_module`)
-Acts as the central communication channel for RabbitMQ:
-- **Resiliency**: If `rabbitmq_enabled=false`, the system completely skips broker initialization during startup, allowing standalone operation.
-- **Event Publisher** (`RMQPublisher`): Publishes structured events wrapped in a standard event envelope containing `event`, `payload`, `message_id`, `correlation_id`, `timestamp`, and `source`.
-- **Consumer Registry** (`register_consumer`): Provides a decorator to register listener methods directly within business modules. Registered listeners are launched inside background tasks at startup if `rabbitmq_consumer_enabled=true`.
-- **Debug Route Support**: Provides `POST /api/rmq/publish` and `POST /api/rmq/consume` endpoints under `debug=true` and `rabbitmq_debug_endpoints_enabled=true` configuration flags.
-- **Transactional Outbox**: DB-dependent events must be queued with
-  `enqueue_outbox_message(session, ...)`. The outbox row commits atomically with
-  business data; a background dispatcher claims rows with `FOR UPDATE SKIP LOCKED`,
-  leases them, publishes with a stable message ID, and retries with backoff.
+### 2. File Module (`app/modules/file_module/CLAUDE.md`)
 
----
+Manages the file storage pipeline.
 
-## Guide for Implementing New Feature Modules
+### 3. RMQ Module (`app/modules/rmq_module/CLAUDE.md`)
 
-When tasked with adding a new feature or domain, follow this exact checklist:
+Acts as the central communication channel for RabbitMQ.
 
-> [!IMPORTANT]
-> If the new module is packaged as an independent service with its own `Dockerfile`, a `.dockerignore` file **must** be created at its root directory to exclude `.venv/`, `.git/`, local `.env` files, and `__pycache__/` to avoid Docker build context pollution and virtual environment conflicts.
+### 4. TaskIQ Module (`app/modules/taskiq_module/CLAUDE.md`)
 
-1. **Generate the Module Directory**: Create the folder structure under `app/modules/<new_module>/`.
-2. **Define Database Models**: Write SQLAlchemy models inside `models/`, inheriting from `Base` and optionally `TimestampMixin`. You can also use other system mixins from `app/modules/system/`.
-3. **Register Models for Alembic**: Import the new model classes inside `app/modules/__init__.py`. This is critical; otherwise, Alembic autogeneration will not discover your new tables.
-4. **Implement Schemas**: Create Pydantic input and output DTOs inside `schemas/`.
-5. **Write Business Logic**: Keep business logic inside `services/`. Endpoints in `handlers.py` must only validate, format, and delegate execution.
-6. **Expose APIRouter**: Setup an `APIRouter` inside `handlers.py` with an appropriate prefix and tags.
-7. **Include Router globally**: Import and register the new router in [app/api/router.py](app/api/router.py).
-8. **Generate and Run Migrations**: Run the following commands:
-   ```bash
-   uv run alembic revision --autogenerate -m "add <new_module> models"
-   uv run alembic upgrade head
-   ```
-9. **Configure Environment Variables**: If your module introduces new settings, define them inside the `MainSettings` class in `app/core/config.py` and document them inside `.env.example`.
+Scheduled Tasks Module.
 
----
+## Guide for Implementing New Feature Modules (`./MODULES.md`)
 
-## Strict Coding Guidelines for AI Agents
+## Strict Coding Rules for AI Agents
 
-- **Maintain Comments**: Preserve all comments, annotations, and docstrings unless explicitly asked to modify them.
-- **No Direct Database Sessions**: Never instantiate a database session or engine manually inside business logic or API endpoints. Always use the dependency injection pattern (`Depends(database.get_session)`). **One sanctioned exception:** RMQ consumer handlers run outside a FastAPI request, where `Depends` is unavailable — they open a session via `database.sessionmaker()` directly and manage `commit`/`rollback` themselves. The reference implementation is `chat_module/services/consumer_handler.py` (the backend's first RMQ consumer, on queue `telegram_support_in`).
-- **Transactional Consistency**: Database operations inside services must rely on the transactional rollback safety already integrated into `app/modules/system` CRUD operations. Never publish a message that references data from the current uncommitted transaction; enqueue it through the RMQ outbox.
-- **Broker Abstraction**: Never import `aio-pika` or `pika` directly inside business modules. All message broker interactions must utilize `rmq_publisher` and `register_consumer`.
-- **No Hardcoded Secrets**: Secrets, credentials, access keys, or passwords must never be committed. Always use the `settings` config projection in `app/core/config.py` loaded from `.env`.
-- **Package Management**: Only use `uv add <package>` and `uv sync` to modify dependencies. Do not use `pip` or `poetry`.
+* **Preserve comments** — do not remove or modify existing comments, annotations, or docstrings unless explicitly asked to do so.
+
+* **Do not create database sessions directly** — never manually instantiate a database session or engine inside business logic or API endpoints. Always use dependency injection: `Depends(database.get_session)`.
+
+  **The only permitted exception:** RMQ consumer handlers run outside a FastAPI request, so `Depends` is unavailable to them. They open a session directly through `database.sessionmaker()` and manage `commit` and `rollback` themselves. The reference implementation is located in `chat_module/services/consumer_handler.py`. It is the backend’s first RMQ consumer and uses the `telegram_support_in` queue.
+
+* **Transactional consistency** — database operations inside services must use the transaction rollback safety mechanisms already built into the CRUD operations in `app/modules/system`. Never publish a message that references data from the current uncommitted transaction. Enqueue it through the RMQ outbox.
+
+* **Broker abstraction** — never import `aio-pika` or `pika` directly inside business modules. All message broker interactions must use `rmq_publisher` and `register_consumer`.
+
+* **No hardcoded secrets** — secrets, credentials, access keys, and passwords must never be committed to the repository. Always use the `settings` object from `app/core/config.py`, which loads values from `.env`.
+
+* **Package management** — use only `uv add <package>` and `uv sync` to modify dependencies. Do not use `pip` or `poetry`.

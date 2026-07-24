@@ -67,7 +67,7 @@ Prefer public exports from `__init__.py` instead of importing internals unless y
 - Keep module-local settings projection in `config.py`; do not read `.env` directly in submodules.
 - If a change affects startup or shutdown, update `app/lifecycle.py` and `runtime.py` wrappers together.
 - If a change adds new settings, update both `app/core/config.py` and `.env.example`.
-- If a change affects developer usage, update `README.md`.
+- HTTP endpoint contracts live in [API contracts](API.md); update it when endpoints change.
 - Do not wire example/test routers into `app/api/router.py` by default.
 
 ## Consumer Contract

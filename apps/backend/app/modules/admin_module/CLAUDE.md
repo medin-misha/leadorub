@@ -24,7 +24,10 @@ Admin authentication & authorization for the backend.
 Live in `app/core/security.py` (core must not depend on modules): `hash_password`, `verify_password` (bcrypt), `create_access_token`, `decode_access_token` (PyJWT, HS256).
 
 ## Endpoints (prefix `/api/auth`)
-- `POST /login` — public. `{username, password}` → `{access_token, token_type}`. Generic 401 on bad creds.
+
+See [API contracts](API.md) for the full per-endpoint request/response JSON.
+
+- `POST /login` — public. Generic 401 on bad creds.
   Login attempts use fixed in-memory windows: per IP+username and per IP. A successful
   login resets both counters; an exhausted window returns 429 with `Retry-After`.
 - `GET /me` — current admin (requires JWT).

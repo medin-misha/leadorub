@@ -264,17 +264,7 @@ Important behavior in `handlers.py`:
 - `GET /telegram/profile`, `GET /telegram/stats` and their `{id}` variants rely on shared `CRUD.get(...)` pagination and search behavior
 - `PATCH`/`DELETE`/`POST` flows for `profile` and `stats` rely on shared `CRUD` contracts
 
-Request body of `POST /telegram/users`:
-
-```json
-{
-  "telegram_user": { "telegram_id": 123456789, "username": "ivan", "language_code": "ru" },
-  "profile": { "phone": "+7...", "full_name": "Ivan Petrov" },
-  "stats": { "source": "instagram_bio", "state": "start" }
-}
-```
-
-`profile` and `stats` are optional. If omitted, an empty profile and a default stats row are created.
+`profile` and `stats` in the `POST /telegram/users` body are optional. If omitted, an empty profile and a default stats row are created. See [API contracts](API.md) for the full per-endpoint request/response JSON.
 
 If handler behavior changes, keep response codes and idempotency rules explicit in both code and docs.
 
@@ -310,7 +300,7 @@ Avoid these changes:
 
 - If you add or rename model fields, update models, schemas, handlers, and migrations together.
 - If you change exports, update `telegram_module/__init__.py` and `app/modules/__init__.py` (Alembic discovery).
-- If you change creation or login semantics, update both `README.md` and this file.
+- If you change creation or login semantics, update this file.
 - If you add feature-specific queries beyond simple CRUD, prefer new service functions instead of overloading handlers.
 - Keep search, pagination, and generic patch/delete behavior delegated to `system.CRUD` unless there is a strong Telegram-specific reason not to.
 
@@ -330,7 +320,8 @@ This module should stay reusable, predictable, and centered on Telegram user ide
 ## Newsletter broadcast
 
 `POST /telegram/newsletter` — `multipart/form-data`: `payload` (JSON string of
-`NewsletterRequest`) + optional `file` (UploadFile).
+`NewsletterRequest`) + optional `file` (UploadFile). See [API contracts](API.md) for
+the HTTP request/response shape.
 
 `NewsletterRequest` validation (schema, mirrors the admin-panel checks so a bad value
 never reaches Telegram): each INLINE button needs exactly one of `url` / `callback_data`;
@@ -379,7 +370,8 @@ button validation is identical everywhere. `DripNewsletterPatch` allows only
 `title`/`is_active` — content is immutable in v1 (recreate the rule instead; the send
 log is keyed by rule id and must stay honest).
 
-Admin endpoints (all `require_admin`):
+Admin endpoints (all `require_admin`; full request/response JSON in
+[API contracts](API.md)):
 
 - `POST /telegram/drip-newsletters` — multipart like `/telegram/newsletter`
   (`payload` JSON + optional `file`); same content gates (text or file required,

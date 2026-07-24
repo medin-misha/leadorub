@@ -77,6 +77,8 @@ Contains a base router for the module.
 
 Treat this file as infrastructure-level routing, not as a place for business workflows.
 
+See [API contracts](API.md).
+
 ### `schemas/` and `utils/`
 
 Currently minimal.
@@ -183,7 +185,7 @@ Avoid these changes:
 ## Safety Notes
 
 - Preserve backward-compatible imports from `app.modules.system` when possible.
-- If you change exported primitives, update both `__init__.py` and `README.md`.
+- If you change exported primitives, update `__init__.py`.
 - If your change introduces new settings or env variables, update `app/core/config.py` explicitly and document the new configuration contract.
 - If you change `CRUD`, verify that its behavior is still generic, async-friendly, and safe for reuse.
 - If you change search or error behavior, document the new contract clearly because other modules may rely on it.
