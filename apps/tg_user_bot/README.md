@@ -30,8 +30,8 @@
 Client MiniApp) и выставляет пользователю состояние `persona_start` в backend.
 Deep link `/start business` ведёт в аналогичную воронку для агентств
 (состояние `business_start`). Подробности — в
-[app/modules/persona/README.md](app/modules/persona/README.md) и
-[app/modules/business/README.md](app/modules/business/README.md).
+[app/modules/persona/CLAUDE.md](app/modules/persona/CLAUDE.md) и
+[app/modules/business/CLAUDE.md](app/modules/business/CLAUDE.md).
 
 Сейчас в приложении подключены модули с разной ролью:
 
@@ -69,55 +69,54 @@ registrations и включён `RABBITMQ_CONSUMER_ENABLED=true`.
 (резолвится по `file_id` через backend `GET /api/files/{id}`; картинка → фото,
 остальное → документ) и клавиатуры (`use_buttons: INLINE|REPLY` с плоским списком
 кнопок). Контракт сообщения — в
-[app/modules/notification_module/README.md](app/modules/notification_module/README.md).
+[app/modules/notification_module/API.md](app/modules/notification_module/API.md).
 
 Точные контракты и семантика повторов описаны в
-[notification_module/README.md](app/modules/notification_module/README.md) и
-[rmq_module/README.md](app/modules/rmq_module/README.md).
+[notification_module/API.md](app/modules/notification_module/API.md),
+[notification_module/CLAUDE.md](app/modules/notification_module/CLAUDE.md) и
+[rmq_module/CLAUDE.md](app/modules/rmq_module/CLAUDE.md).
 
 ## Структура проекта
 
+Каждый модуль документируется парой файлов на английском: `CLAUDE.md`
+(инструкции для агента) и `API.md` (контракты интерфейсов — команды, deep links,
+RMQ- и backend-контракты). Отдельных модульных `README.md` больше нет.
+
 ```text
-telegram_template/
+tg_user_bot/
+├── .claude/
+│   ├── CLAUDE.md            # контекст сервиса для агента
+│   └── MODULES.md           # как добавлять новые модули
 ├── app/
 │   ├── bot/
 │   │   ├── app.py
 │   │   ├── dispatcher.py
-│   │   ├── lifecycle.py
-│   │   └── registry.py
+│   │   ├── lifecycle.py     # startup/shutdown внешних ресурсов
+│   │   └── registry.py      # явная регистрация роутеров
 │   ├── core/
 │   │   ├── config.py
 │   │   ├── context.py
 │   │   └── logging.py
 │   └── modules/
-│       ├── rmq_module/
-│       │   ├── AGENTS.md
-│       │   ├── README.md
-│       │   ├── config.py
-│       │   ├── handlers.py
-│       │   ├── runtime.py
-│       │   ├── schemas/
-│       │   └── services/
-│       ├── system/
-│       │   ├── auth/
-│       │   ├── AGENTS.md
-│       │   ├── README.md
-│       │   ├── client.py
-│       │   ├── config.py
-│       │   ├── handlers.py
-│       │   ├── messages.json
-│       │   ├── messages.py
-│       │   ├── runtime.py
-│       │   └── schemas.py
-│       └── test_rmq_module/
-│           ├── handlers.py
-│           └── services/
+│       ├── system/          # обязательный слой: auth, backend-клиент, /start
+│       ├── rmq_module/      # общий RabbitMQ transport-layer
+│       ├── notification_module/  # RMQ-consumer доставки уведомлений/рассылок
+│       ├── support_module/  # FSM поддержки (текст → RMQ, медиа → HTTP)
+│       ├── requisition_module/   # FSM-опросники заявок (/apply)
+│       ├── persona/         # воронка DMCAGuardian на /start (без router)
+│       └── business/        # воронка для агентств на /start business (без router)
+├── assets/                  # PDF/видео воронок
 ├── docs/
 │   └── plans/
+├── tests/
 ├── main.py
 ├── pyproject.toml
 └── .env
 ```
+
+Каждый модуль внутри содержит `CLAUDE.md`, `API.md`, `handlers.py` (или
+`service.py` у безроутерных воронок) и, по необходимости, `services/`,
+`schemas.py`, `states.py`, `keyboards.py`, `messages.json`, `config.py`.
 
 ## Как устроен запуск
 
@@ -324,6 +323,10 @@ telegram_template/
 - удобно для роста модуля
 
 ## Как добавить новый модуль
+
+Канонический гайд для агентов — [.claude/MODULES.md](.claude/MODULES.md)
+(структура, документация `CLAUDE.md`/`API.md`, регистрация, auth). Ниже —
+краткий пример «на пальцах».
 
 Допустим, вы хотите сделать модуль `profile`.
 
