@@ -1,0 +1,952 @@
+{
+  "nodes": [
+    {
+      "type": "text",
+      "id": "title",
+      "x": -360,
+      "y": -780,
+      "width": 901.1612454019614,
+      "height": 220.19238045099712,
+      "color": "6",
+      "text": "# 🤖 Telegram User Bot — `apps/tg_user_bot`\n\nAiogram 3 long-polling бот. **Транспорт/UI-слой** Leadorub: своей БД нет, всё состояние живёт в backend.\n\n- **HTTP → backend** (`X-Service-Token`): auth, заявки, медиа поддержки, файлы рассылки\n- **RabbitMQ** (`app.events`): вход — рассылки, выход — сообщения поддержки\n- **Redis**: идемпотентность рассылки"
+    },
+    {
+      "type": "text",
+      "id": "filetree",
+      "x": -2116.003617443871,
+      "y": -283.0454177080064,
+      "width": 780,
+      "height": 1360,
+      "color": "6",
+      "text": "## 📁 Структура файлов\n\n```\napps/tg_user_bot\n├── main.py              ← точка входа\n├── app/\n│   ├── bot/             ← сборка runtime\n│   │   ├── app.py       create_application/run_polling\n│   │   ├── dispatcher.py\n│   │   ├── registry.py  register_routers (порядок!)\n│   │   └── lifecycle.py startup/shutdown\n│   ├── core/\n│   │   ├── config.py    MainSettings\n│   │   ├── context.py   ContextVar auth-сессии\n│   │   └── logging.py\n│   └── modules/\n│       ├── system/          🧩 auth-хаб, /start\n│       │   ├── handlers.py\n│       │   ├── client.py    BackendClient\n│       │   ├── deep_link.py  parse_source\n│       │   ├── auth/  service · cache · decorators\n│       │   ├── config · runtime · schemas\n│       │   └── messages.py/.json\n│       ├── persona/         🎬 воронка /start\n│       ├── business/        🏢 воронка /start business\n│       ├── requisition_module/  📝 заявки (FSM)\n│       ├── support_module/      🆘 чат поддержки\n│       │   └── services/uploader.py\n│       ├── notification_module/ 📣 рассылки (consumer)\n│       │   └── services/ consumer_handler · sender\n│       │       · idempotency · backend_files\n│       └── rmq_module/          🐇 RabbitMQ-инфра\n│           └── services/ client · publisher · consumer\n│               · registry · runtime · topology\n├── assets/   coala.mp4 · sila_tvorozhka.pdf\n├── tests/    unittest\n└── Dockerfile · pyproject.toml · .env.example\n```"
+    },
+    {
+      "type": "text",
+      "id": "legend",
+      "x": -2160,
+      "y": 1300,
+      "width": 780,
+      "height": 300,
+      "color": "3",
+      "text": "## 🎨 Легенда\n\n- 🟦 **Bootstrap / Core** — сборка процесса\n- 🟩 **system** — auth-хаб, общий backend-клиент\n- 🟧 **persona / business** — стартовые воронки\n- 🟨 **requisition** — заявки (FSM)\n- 🟥 **support** — чат поддержки\n- 🟪 **rmq / notification** — асинхронная инфраструктура\n- ⬜ **серые** — внешние сервисы (вне бота)\n\nСтрелки = поток вызовов / данных."
+    },
+    {
+      "type": "text",
+      "id": "entry_main",
+      "x": -1215.0961902254985,
+      "y": -283.7356016765618,
+      "width": 374.8373620588429,
+      "height": 268.44703100006603,
+      "color": "5",
+      "text": "## `main.py` — точка входа\n```python\nasyncio.run(main())\n```\n`setup_logging(debug)` → `run_polling(settings)`.\nФайл тонкий: вся сборка в `app/bot`."
+    },
+    {
+      "type": "text",
+      "id": "app_app",
+      "x": -1217.5180796843201,
+      "y": 207.50774843613715,
+      "width": 353.72326253766516,
+      "height": 286.0890201651796,
+      "color": "5",
+      "text": "### `app/bot/app.py`\n**Сборка runtime**\n- `create_bot()` → `Bot(token, parse_mode=HTML)`\n- `create_application()` → bot + dispatcher + lifecycle\n- `run_polling()` → `dispatcher.start_polling(bot)`"
+    },
+    {
+      "type": "text",
+      "id": "app_lifecycle",
+      "x": -1218.8770572848937,
+      "y": 1121.312559125376,
+      "width": 338.85639478852795,
+      "height": 269.4936533980724,
+      "color": "5",
+      "text": "### `app/bot/lifecycle.py`\n**`register_lifecycle`** — хуки процесса.\n**startup:** `delete_webhook` → `startup_system_runtime` → `startup_rmq_runtime` → `idempotency_store.connect`\n**shutdown:** rmq → idempotency → system → `bot.session.close`"
+    },
+    {
+      "type": "text",
+      "id": "core_config",
+      "x": -1214.4373464777686,
+      "y": 1582.4218253811525,
+      "width": 352.3628754639881,
+      "height": 285.7712678585642,
+      "color": "3",
+      "text": "### `app/core/config.py`\n**`MainSettings`** (pydantic-settings, читает `.env`)` TOKEN`,  `BACKEND_URL`/`_API_PREFIX`/`_TIMEOUT`, `SERVICE_TOKEN`, `CLIENT_MINIAPP_URL`, `ADMIN_CONTACT_URL`, persona/business asset paths, `AMQP_URL` + RabbitMQ*, Redis + `newsletter_idempotency_ttl`.\n`redis_url = None` ⇒ дедуп выключен."
+    },
+    {
+      "type": "text",
+      "id": "core_context",
+      "x": -1211.6900408191045,
+      "y": 1888.1930932397165,
+      "width": 341.37365282933195,
+      "height": 209.2874339065802,
+      "color": "3",
+      "text": "### `app/core/context.py`\n`ContextVar` текущей auth-сессии.\n`set/reset/get_current_auth_session` — `login_required` кладёт сессию сюда на время update."
+    },
+    {
+      "type": "text",
+      "id": "core_logging",
+      "x": -1214.4373464777686,
+      "y": 2116.1068743169644,
+      "width": 344.12095848799595,
+      "height": 172.03473956524408,
+      "color": "3",
+      "text": "### `app/core/logging.py`\n`setup_logging(debug)` — структурное логирование процесса."
+    },
+    {
+      "type": "text",
+      "id": "sys_handlers",
+      "x": -740,
+      "y": -60,
+      "width": 500,
+      "height": 300,
+      "color": "4",
+      "text": "### `system/handlers.py` — Router `system`\n**Эндпоинты:**\n- **`/start [payload]`** — `state.clear()` → provision (source из `source_*`) → воронка: payload `business` → business, иначе → persona\n- **`/authstatus`** `@login_required(no_cache=True)` — показать auth-сессию + размер кэша\n- **`/usersysinfo`** — debug-инфо (только при `DEBUG`)\n\n`_provision_on_start`: `ensure_authenticated`, ошибки backend проглатываются."
+    },
+    {
+      "type": "text",
+      "id": "sys_decorator",
+      "x": -740,
+      "y": 260,
+      "width": 500,
+      "height": 230,
+      "color": "4",
+      "text": "### `system/auth/decorators.py`\n**`@login_required(no_cache=False)`** — базовый гейт хендлеров.\nПоднимает auth-сессию через backend → кладёт в `ContextVar` → пускает в хендлер; при ошибке backend отвечает пользователю и блокирует.\nОтвечает и на `Message`, и на `CallbackQuery`.\n**Используют:** `/authstatus`, `/apply`, `/support`."
+    },
+    {
+      "type": "text",
+      "id": "sys_auth_service",
+      "x": -740,
+      "y": 510,
+      "width": 500,
+      "height": 220,
+      "color": "4",
+      "text": "### `system/auth/service.py`\n**`ensure_authenticated(user, no_cache, source)`**\ncache → `POST /telegram/login`; на 404 ⇒ `POST /telegram/users` (+ source для first-touch) → повторный login → кэш.\n`get_cached_auth_session(id)`.\nОшибка: `AuthenticationFlowError`."
+    },
+    {
+      "type": "text",
+      "id": "sys_client",
+      "x": -740,
+      "y": 750,
+      "width": 500,
+      "height": 320,
+      "color": "4",
+      "text": "### `system/client.py` — **`BackendClient`**\n`aiohttp` сессия с дефолтным заголовком `X-Service-Token`.\n**Вызовы backend API:**\n- `POST /telegram/login`\n- `POST /telegram/users`\n- `PUT  /telegram/state`\n- `POST /requisitions`\n\nОшибки: `BackendNotConfigured/Unavailable/Unexpected/UserNotFound`.\nlifecycle: `startup/shutdown_backend_client`, `get_backend_client()`."
+    },
+    {
+      "type": "text",
+      "id": "sys_cache",
+      "x": -740,
+      "y": 1090,
+      "width": 500,
+      "height": 150,
+      "color": "4",
+      "text": "### `system/auth/cache.py`\n**`InMemoryAuthCache`** — bounded LRU (`OrderedDict`, `auth_cache_max_size`, вытеснение старых).\n`AuthSession(telegram_id, telegram_user, authenticated_at)`.\nГлобальный `auth_cache`."
+    },
+    {
+      "type": "text",
+      "id": "sys_deeplink",
+      "x": -740,
+      "y": 1260,
+      "width": 500,
+      "height": 140,
+      "color": "4",
+      "text": "### `system/deep_link.py`\n**`parse_source(args)`** — извлекает маркетинговый `source` из deep-link payload `source_<value>` (обрез до 255 симв.).\nРеализует first-touch атрибуцию без доработок backend."
+    },
+    {
+      "type": "text",
+      "id": "sys_infra",
+      "x": -740,
+      "y": 1410,
+      "width": 500,
+      "height": 180,
+      "color": "4",
+      "text": "### `system/config.py` · `runtime.py` · `schemas.py`\n- **`SystemModuleSettings`** — явная проекция `MainSettings`\n- **`startup/shutdown_system_runtime`** — cache + backend-клиент\n- **Pydantic-контракты backend:** `TelegramUserCreate/Read`, `UserState`, `Requisition*`, `UserProfile/Stats`"
+    },
+    {
+      "type": "text",
+      "id": "sup_desc",
+      "x": 401.5388152257513,
+      "y": -55.90416409274275,
+      "width": 520,
+      "height": 180,
+      "color": "1",
+      "text": "### `support_module/` — Router `support`\nЧат пользователь ↔ админ от имени бота. FSM `SupportStates.active`.\n**Текст → RabbitMQ**, **медиа → HTTP на backend**. Доставку помечает реакцией 👀 (строго после успеха).\nВсе контентные хендлеры под `StateFilter(active)`."
+    },
+    {
+      "type": "text",
+      "id": "sup_endpoints",
+      "x": 401.5388152257513,
+      "y": 144.09583590725725,
+      "width": 520,
+      "height": 360,
+      "color": "1",
+      "text": "### `handlers.py` — Эндпоинты\n- **`/support`** `@login_required` — вход в режим (провижининг обязателен)\n- **`/stop`** / cb **`support:stop`** — выход (`StateFilter(active)`)\n- **text** → `rmq_publisher.publish` в `telegram_support_in` → 👀\n- **photo** (макс. размер) → download → upload на backend → 👀\n- **document** (имя+mime) → download → upload → 👀\n- **прочее** → «поддерживаются только текст, фото, документы»\n\nСобытие RMQ: `telegram.support_message`, exchange `app.events` (direct). Лимит медиа 10 МБ."
+    },
+    {
+      "type": "text",
+      "id": "sup_uploader",
+      "x": 401.5388152257513,
+      "y": 524.0958359072575,
+      "width": 520,
+      "height": 220,
+      "color": "1",
+      "text": "### `services/uploader.py`\n**`upload_inbound_media(...)`** → `POST /api/chat/inbound-media`\nmultipart (`telegram_id`, `tg_message_id`, `caption`, `file`), заголовок `X-Service-Token`, timeout 60 с.\nБинарь **не** гоняется через RMQ. Backend заливает в S3 и создаёт `chat_message(direction=user)`.\nПроверка размера дважды: по метаданным и по факту."
+    },
+    {
+      "type": "text",
+      "id": "sup_states_kbd",
+      "x": 401.5388152257513,
+      "y": 764.0958359072584,
+      "width": 520,
+      "height": 120,
+      "color": "1",
+      "text": "### `states.py` · `keyboards.py`\n`SupportStates.active` (`StatesGroup`).\n`support_exit_keyboard()` — inline ✖️ Завершить диалог (cb `support:stop`)."
+    },
+    {
+      "type": "text",
+      "id": "rmq_desc",
+      "x": -176.86918471274362,
+      "y": -64.56601019091886,
+      "width": 520,
+      "height": 170,
+      "color": "6",
+      "text": "### `rmq_module/` — Router `rmq` (пустой)\nОбщая **RabbitMQ-инфраструктура** (`aio_pika`, robust connection): publisher + consumer registry + runtime.\nВ V1 своих Telegram-команд нет. Exchange по умолчанию `app.events` (direct).\n`config.py`: проекция RMQ-настроек из `MainSettings`."
+    },
+    {
+      "type": "text",
+      "id": "rmq_publisher",
+      "x": -176.86918471274362,
+      "y": 125.4339898090816,
+      "width": 520,
+      "height": 180,
+      "color": "6",
+      "text": "### `services/publisher.py` — **`rmq_publisher`**\n`publish(event, payload, exchange/queue/routing_key, source, correlation_id, ...)` → `RMQMessage` (persistent, `content_type=application/json`).\nЕсли задан queue — объявляет topology (exchange + queue + bind), иначе только exchange.\nИспользует support (out)."
+    },
+    {
+      "type": "text",
+      "id": "rmq_consumer",
+      "x": -176.86918471274362,
+      "y": 325.4339898090817,
+      "width": 520,
+      "height": 220,
+      "color": "6",
+      "text": "### `services/consumer.py` — **`RMQConsumerService`**\n`run_registration`: (auto_declare) ensure_topology → `consume` → ждёт stop_event; reconnect-цикл при сбое.\n`_handle_message`:\n- `ValidationError` ⇒ `reject(requeue=False)`\n- **`RetryableRMQError`** ⇒ `reject(requeue=True)`\n- прочее ⇒ `reject(requeue=False)`\n- успех ⇒ `ack`"
+    },
+    {
+      "type": "text",
+      "id": "rmq_registry_runtime",
+      "x": -176.86918471274362,
+      "y": 565.4339898090823,
+      "width": 520,
+      "height": 220,
+      "color": "6",
+      "text": "### `services/registry.py` · `runtime.py`\n**`register_consumer(queue, exchange, routing_key, handler)`** → `rmq_registry` (защита от дублей).\n**`rmq_runtime`** (`RMQRuntime`):\n- `start()` — если `consumer_enabled` и есть регистрации: connect + task на каждую регистрацию\n- `stop()` — stop_event + cancel tasks + close\n- `describe()` — health"
+    },
+    {
+      "type": "text",
+      "id": "rmq_client_topology",
+      "x": -176.86918471274362,
+      "y": 805.4339898090825,
+      "width": 520,
+      "height": 190,
+      "color": "6",
+      "text": "### `services/client.py` · `topology.py` · `schemas/`\n**`RMQClient`** (`connect_robust`, qos `prefetch_count`): `declare_exchange/queue`, `ensure_topology`, `publish`, `consume`.\n`ExchangeSpec`/`QueueSpec` — durable по умолчанию.\n`RMQMessage` — `event, payload, message_id, timestamp, source, correlation_id`."
+    },
+    {
+      "type": "text",
+      "id": "notif_desc",
+      "x": 985.3269500527194,
+      "y": -64.38816366515968,
+      "width": 540,
+      "height": 180,
+      "color": "6",
+      "text": "### `notification_module/` — Router `notification`\nConsumer **рассылок**: слушает `telegram_notifications`, доставляет текст/медиа/кнопки по списку `chat_ids`.\nImport `consumer_handler` в `__init__` = side-effect регистрации consumer-а.\n`schemas.py`: `TelegramNotification` (chat_ids · message · `use_buttons` INLINE/REPLY · `broadcast_id` · `file_id` · chunk_index/total) · `TelegramButton` (text · url · callback_data · web_app · request_contact)."
+    },
+    {
+      "type": "text",
+      "id": "notif_consumer_handler",
+      "x": 985.3269500527194,
+      "y": 135.6118363348404,
+      "width": 540,
+      "height": 180,
+      "color": "6",
+      "text": "### `services/consumer_handler.py`\n**`handle_telegram_notification(RMQMessage)`** — валидирует `TelegramNotification`, зовёт `send_notification`.\n`register_consumer(queue='telegram_notifications', exchange='app.events', routing_key='telegram_notifications')`.\nРассылка приходит одним сообщением со списком получателей."
+    },
+    {
+      "type": "text",
+      "id": "notif_sender",
+      "x": 985.3269500527194,
+      "y": 335.61183633484046,
+      "width": 540,
+      "height": 360,
+      "color": "6",
+      "text": "### `services/sender.py` — **`send_notification`**\nОтдельный `Bot`-инстанс для фоновых рассылок. Перебор `chat_ids` с троттлингом.\n- **`build_markup`** — INLINE/REPLY клавиатуры (URL / callback / WebApp / request_contact)\n- **`escape_html`** — защита parse_mode=HTML\n- **`_send_with_retry`**:\n  - 429 `TelegramRetryAfter` → ждём `retry_after`, повтор (×5)\n  - 403 `TelegramForbiddenError` → permanent skip\n  - прочее → retryable\n- **Файл:** `fetch_file` один раз → первому байтами, дальше reuse Telegram `file_id`.\nПри retryable-адресатах → `NotificationDeliveryError` (`RetryableRMQError`)."
+    },
+    {
+      "type": "text",
+      "id": "notif_idempotency",
+      "x": 985.3269500527194,
+      "y": 715.6118363348392,
+      "width": 540,
+      "height": 230,
+      "color": "6",
+      "text": "### `services/idempotency.py` — **`idempotency_store`** (Redis)\n**Двухфазный claim** (owner-token):\n1. `claim` — `processing` (NX, TTL 900 с)\n2. send в Telegram\n3. `complete` → `sent` (TTL 48 ч) при успехе/permanent 403\n4. `release` (del) при retryable — RMQ повторит\n\nLua-скрипты для атомарности. Redis недоступен ⇒ **degrade** (at-least-once без дедупа).\nКлюч: `newsletter:{broadcast_id}:{chat_id}`."
+    },
+    {
+      "type": "text",
+      "id": "notif_backend_files",
+      "x": 985.3269500527194,
+      "y": 965.6118363348392,
+      "width": 540,
+      "height": 180,
+      "color": "6",
+      "text": "### `services/backend_files.py`\n**`fetch_file(file_id)`** → `GET /api/files/{id}` → (bytes, content_type).\nЗаголовок `X-Service-Token` (backend gate `require_admin_or_service`).\n`file_id` — id модели `File` backend, НЕ Telegram file_id."
+    },
+    {
+      "type": "text",
+      "id": "ext_telegram",
+      "x": -140,
+      "y": -540,
+      "width": 500,
+      "height": 150,
+      "text": "## ✈️ Telegram Bot API\n**long-polling** (`dispatcher.start_polling`).\nОтправка сообщений / документов / видео / реакций (👀), inline & WebApp-кнопки.\n429/403 обрабатываются в рассылке."
+    },
+    {
+      "type": "text",
+      "id": "ext_backend",
+      "x": 2700,
+      "y": -60,
+      "width": 400,
+      "height": 300,
+      "text": "## 🌐 Backend (FastAPI)\nServer-to-server, заголовок **`X-Service-Token`**.\n**Эндпоинты, которые дёргает бот:**\n- `POST /telegram/login`\n- `POST /telegram/users`\n- `PUT  /telegram/state`\n- `POST /requisitions`\n- `POST /chat/inbound-media`\n- `GET  /files/{id}`\n\nВсё состояние пользователей/заявок/чата — здесь."
+    },
+    {
+      "type": "text",
+      "id": "ext_rabbit",
+      "x": -200,
+      "y": 1240,
+      "width": 520,
+      "height": 170,
+      "text": "## 🐇 RabbitMQ\nexchange **`app.events`** (direct).\n**Queues:**\n- `telegram_notifications` — вход (рассылки от backend)\n- `telegram_support_in` — выход (сообщения поддержки → backend consumer)\n\nСообщения persistent, prefetch qos."
+    },
+    {
+      "type": "text",
+      "id": "ext_redis",
+      "x": 2701.829008461539,
+      "y": 445.7252115384714,
+      "width": 400,
+      "height": 150,
+      "text": "## 🔴 Redis\nИдемпотентность рассылки.\nКлюч `newsletter:{broadcast_id}:{chat_id}` — `processing` → `sent`.\nОбщий с backend (`redis_password`). Опционален (degrade)."
+    },
+    {
+      "type": "group",
+      "id": "g_boot",
+      "x": -1240,
+      "y": 80,
+      "width": 408.5563818614713,
+      "height": 1414.0026290450542,
+      "color": "5",
+      "label": "🚀 app/bot — сборка runtime"
+    },
+    {
+      "type": "group",
+      "id": "g_core",
+      "x": -1250.3163879897725,
+      "y": 1526.5427838691494,
+      "width": 426.86826414666007,
+      "height": 831.8191922583646,
+      "color": "3",
+      "label": "⚙️ app/core"
+    },
+    {
+      "type": "group",
+      "id": "g_system",
+      "x": -760,
+      "y": -120,
+      "width": 540,
+      "height": 1730,
+      "color": "4",
+      "label": "🧩 system — auth-хаб / общий backend-клиент"
+    },
+    {
+      "type": "group",
+      "id": "g_support",
+      "x": 383.2664040491307,
+      "y": -117.63175291612228,
+      "width": 560,
+      "height": 1040,
+      "color": "1",
+      "label": "🆘 support_module — чат поддержки"
+    },
+    {
+      "type": "group",
+      "id": "g_rmq",
+      "x": -196.86918471274362,
+      "y": -124.56601019091795,
+      "width": 560,
+      "height": 1140,
+      "color": "6",
+      "label": "🐇 rmq_module — RabbitMQ-инфраструктура"
+    },
+    {
+      "type": "group",
+      "id": "g_notification",
+      "x": 965.3269500527194,
+      "y": -124.38816366515968,
+      "width": 580,
+      "height": 1290,
+      "color": "6",
+      "label": "📣 notification_module — рассылки (consumer)"
+    },
+    {
+      "type": "text",
+      "id": "app_dispatcher",
+      "x": -1214.5180088281068,
+      "y": 530.8994758965353,
+      "width": 343.43081563441626,
+      "height": 175.18549705390944,
+      "color": "5",
+      "text": "### `app/bot/dispatcher.py`\n`create_dispatcher()` → `Dispatcher()` + `register_routers()`.\nТочка расширения для middleware/filters."
+    },
+    {
+      "type": "text",
+      "id": "app_registry",
+      "x": -1213.6565192717007,
+      "y": 742.7567056695668,
+      "width": 344.5744208458883,
+      "height": 335.23786185695633,
+      "color": "5",
+      "text": "### `app/bot/registry.py`\n**`register_routers(dispatcher)`** — явное подключение.\n⚠️ **Порядок важен:**\n1. `system` · 2. `rmq` · 3. `notification`\n4. `support` · 5. `requisition`\n\nsystem раньше support: `/start` побеждает catch-all поддержки. notification/support — через `try/except ImportError`."
+    },
+    {
+      "type": "text",
+      "id": "persona_0",
+      "x": 1020,
+      "y": 1450,
+      "width": 480,
+      "height": 215,
+      "color": 2,
+      "text": "### 🎬 Вход `run_start_funnel(message)`\nRouter **НЕТ** — вызывается из `system./start` (payload ≠ `business`).\nКнопки клавиатуры — URL/WebApp, обрабатывает клиент Telegram.\n**Поток:** welcome → ⏸2с → PDF-гайд → ⏸1с → видео+клавиатура → фиксация состояния."
+    },
+    {
+      "type": "text",
+      "id": "persona_1",
+      "x": 1020,
+      "y": 1685,
+      "width": 480,
+      "height": 215,
+      "color": 2,
+      "text": "### 📎 `_send_guide` / `_send_video`\n- `_send_guide` — PDF `persona_guide_path` (`assets/sila_tvorozhka.pdf`), **без подписи**.\n- `_send_video` — видео `persona_video_path` (`assets/coala.mp4`) + `video_caption` + клавиатура; нет файла → только текст.\nКопирайт в `messages.json`: `welcome`, `video_caption`."
+    },
+    {
+      "type": "text",
+      "id": "persona_2",
+      "x": 1020,
+      "y": 1920,
+      "width": 480,
+      "height": 215,
+      "color": 2,
+      "text": "### 🗄️ `_mark_persona_start`\n`set_user_state(id, \"persona_start\")` →\n**`PUT /api/telegram/state`** (`X-Service-Token`).\nОшибки backend только логируются — UX не ломается."
+    },
+    {
+      "type": "text",
+      "id": "persona_3",
+      "x": 1020,
+      "y": 2155,
+      "width": 480,
+      "height": 215,
+      "color": 2,
+      "text": "### ⌨️ `get_contact_keyboard`\n- «✍️ Написать» — URL `ADMIN_CONTACT_URL` (если задан).\n- «📩 Оставить заявку» — WebApp `CLIENT_MINIAPP_URL`.\nХендофф в заявку — НЕ авто: Mini App / `/apply` / личка."
+    },
+    {
+      "type": "group",
+      "id": "g_persona",
+      "x": 980,
+      "y": 1380,
+      "width": 560,
+      "height": 1030,
+      "color": 2,
+      "label": "🎬 persona — воронка /start (по умолчанию)"
+    },
+    {
+      "type": "text",
+      "id": "business_0",
+      "x": 1660,
+      "y": 1450,
+      "width": 480,
+      "height": 215,
+      "color": 2,
+      "text": "### 🏢 Вход `run_start_funnel(message)`\nRouter **НЕТ** — вызывается из `system./start` при payload `business` (`BUSINESS_START_PAYLOAD`).\n**Поток:** welcome → ⏸2с → PDF-гайд → ⏸1с → видео+клавиатура → фиксация состояния.\nСтруктурно идентичен persona."
+    },
+    {
+      "type": "text",
+      "id": "business_1",
+      "x": 1660,
+      "y": 1685,
+      "width": 480,
+      "height": 215,
+      "color": 2,
+      "text": "### 📎 `_send_guide` / `_send_video`\n- `_send_guide` — PDF `business_guide_path`, **с подписью** `guide_caption` ← отличие от persona.\n- `_send_video` — видео `business_video_path` + `video_caption` + клавиатура.\nАссеты по умолчанию переиспользуют persona-файлы.\n`messages.json`: `welcome`, `guide_caption`, `video_caption`."
+    },
+    {
+      "type": "text",
+      "id": "business_2",
+      "x": 1660,
+      "y": 1920,
+      "width": 480,
+      "height": 215,
+      "color": 2,
+      "text": "### 🗄️ `_mark_business_start`\n`set_user_state(id, \"business_start\")` →\n**`PUT /api/telegram/state`** (`X-Service-Token`).\nОшибки логируются."
+    },
+    {
+      "type": "text",
+      "id": "business_3",
+      "x": 1660,
+      "y": 2155,
+      "width": 480,
+      "height": 215,
+      "color": 2,
+      "text": "### ⌨️ `get_contact_keyboard`\nИдентична persona: «✍️ Написать» (`ADMIN_CONTACT_URL`) + «📩 Оставить заявку» (WebApp `CLIENT_MINIAPP_URL`)."
+    },
+    {
+      "type": "group",
+      "id": "g_business",
+      "x": 1620,
+      "y": 1380,
+      "width": 560,
+      "height": 1030,
+      "color": 2,
+      "label": "🏢 business — воронка /start business"
+    },
+    {
+      "type": "text",
+      "id": "req_c0r0",
+      "x": 1600,
+      "y": -50,
+      "width": 480,
+      "height": 215,
+      "color": 3,
+      "text": "### 📝 Router `requisitions`\nЗарегистрирован **последним** в `registry.py`.\nВход: **`/apply`** `@login_required` → меню продуктов.\nОтмена везде: callback `apply:cancel` или текст `Отмена ❌`.\n⚠️ Только `/apply` под гейтом; callback/state-хендлеры полагаются на уже поднятую сессию."
+    },
+    {
+      "type": "text",
+      "id": "req_c0r1",
+      "x": 1600,
+      "y": 185,
+      "width": 480,
+      "height": 215,
+      "color": 3,
+      "text": "### 🎛️ Хендлеры выбора\n- `apply_start` — `/apply` @login_required → меню\n- `apply_cancel_callback` — `apply:cancel`\n- `apply_cancel_text` — текст `Отмена ❌`\n- `start_consultation_flow` — `apply:consultation`\n- `start_community_flow` — `apply:community`"
+    },
+    {
+      "type": "text",
+      "id": "req_c0r2",
+      "x": 1600,
+      "y": 420,
+      "width": 480,
+      "height": 215,
+      "color": 3,
+      "text": "### 🧭 FSM `ConsultationStates`\n`waiting_for_name` → `waiting_for_phone` → `waiting_for_description`\nСобирает: `name` · `phone` (`message.contact`/текст) · `description`.\nФинал → POST заявки `type=consultation`."
+    },
+    {
+      "type": "text",
+      "id": "req_c1r0",
+      "x": 2100,
+      "y": -50,
+      "width": 480,
+      "height": 215,
+      "color": 3,
+      "text": "### 🧭 FSM `CommunityStates`\n`waiting_for_name` → `waiting_for_experience` → `waiting_for_motivation`\nСобирает: `name` · `experience` · `motivation`.\nФинал → POST заявки `type=community`."
+    },
+    {
+      "type": "text",
+      "id": "req_c1r1",
+      "x": 2100,
+      "y": 185,
+      "width": 480,
+      "height": 215,
+      "color": 3,
+      "text": "### 🗄️ Создание заявки\n`create_requisition(id, type, payload)` →\n**`POST /api/requisitions`** `{telegram_id, type, payload}` (`X-Service-Token`).\nУспех → «Приняли…» + `state.clear()`; ошибка → состояние сохраняется (повтор)."
+    },
+    {
+      "type": "text",
+      "id": "req_c1r2",
+      "x": 2100,
+      "y": 420,
+      "width": 480,
+      "height": 215,
+      "color": 3,
+      "text": "### ⌨️ Клавиатуры\n- `get_product_selection_keyboard` — inline: consultation · community · cancel.\n- `get_cancel_keyboard` — inline отмена.\n- `get_phone_keyboard` — **reply** `request_contact=True` + Отмена.\nКопирайт — inline-константы (НЕ в `messages.json`)."
+    },
+    {
+      "type": "group",
+      "id": "g_req",
+      "x": 1560,
+      "y": -120,
+      "width": 1060,
+      "height": 795,
+      "color": 3,
+      "label": "📝 requisition_module — заявки (FSM: consultation · community)"
+    }
+  ],
+  "edges": [
+    {
+      "id": "b1",
+      "fromNode": "entry_main",
+      "fromSide": "bottom",
+      "toNode": "app_app",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "run_polling()"
+    },
+    {
+      "id": "b4",
+      "fromNode": "app_app",
+      "fromSide": "left",
+      "toNode": "app_lifecycle",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "register_lifecycle"
+    },
+    {
+      "id": "l1",
+      "fromNode": "app_lifecycle",
+      "fromSide": "right",
+      "toNode": "sys_infra",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "startup/shutdown system"
+    },
+    {
+      "id": "l2",
+      "fromNode": "app_lifecycle",
+      "fromSide": "bottom",
+      "toNode": "rmq_registry_runtime",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "rmq runtime"
+    },
+    {
+      "id": "l3",
+      "fromNode": "app_lifecycle",
+      "fromSide": "right",
+      "toNode": "notif_idempotency",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "idempotency.connect"
+    },
+    {
+      "id": "s3",
+      "fromNode": "sys_handlers",
+      "fromSide": "bottom",
+      "toNode": "sys_auth_service",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "provision"
+    },
+    {
+      "id": "s4",
+      "fromNode": "sys_decorator",
+      "fromSide": "bottom",
+      "toNode": "sys_auth_service",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "ensure_authenticated"
+    },
+    {
+      "id": "s5",
+      "fromNode": "sys_auth_service",
+      "fromSide": "bottom",
+      "toNode": "sys_client",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "login / create / state"
+    },
+    {
+      "id": "s6",
+      "fromNode": "sys_auth_service",
+      "fromSide": "right",
+      "toNode": "sys_cache",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "cache"
+    },
+    {
+      "id": "s7",
+      "fromNode": "sys_handlers",
+      "fromSide": "bottom",
+      "toNode": "sys_deeplink",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "parse_source"
+    },
+    {
+      "id": "dec2",
+      "fromNode": "sys_decorator",
+      "fromSide": "right",
+      "toNode": "sup_endpoints",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "@login_required"
+    },
+    {
+      "id": "cb1",
+      "fromNode": "sys_client",
+      "fromSide": "right",
+      "toNode": "ext_backend",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "HTTP X-Service-Token"
+    },
+    {
+      "id": "sup1",
+      "fromNode": "sup_endpoints",
+      "fromSide": "bottom",
+      "toNode": "rmq_publisher",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "publish → telegram_support_in"
+    },
+    {
+      "id": "sup2",
+      "fromNode": "sup_endpoints",
+      "fromSide": "bottom",
+      "toNode": "sup_uploader",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "media"
+    },
+    {
+      "id": "sup3",
+      "fromNode": "sup_uploader",
+      "fromSide": "right",
+      "toNode": "ext_backend",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "POST /chat/inbound-media"
+    },
+    {
+      "id": "rq1",
+      "fromNode": "rmq_publisher",
+      "fromSide": "bottom",
+      "toNode": "rmq_client_topology",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "publish"
+    },
+    {
+      "id": "rq2",
+      "fromNode": "rmq_registry_runtime",
+      "fromSide": "bottom",
+      "toNode": "rmq_consumer",
+      "toSide": "bottom",
+      "toEnd": "arrow",
+      "label": "run_registration"
+    },
+    {
+      "id": "rq3",
+      "fromNode": "rmq_consumer",
+      "fromSide": "bottom",
+      "toNode": "rmq_client_topology",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "consume"
+    },
+    {
+      "id": "rq4",
+      "fromNode": "rmq_client_topology",
+      "fromSide": "bottom",
+      "toNode": "ext_rabbit",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "connect_robust"
+    },
+    {
+      "id": "n0",
+      "fromNode": "notif_consumer_handler",
+      "fromSide": "left",
+      "toNode": "rmq_registry_runtime",
+      "toSide": "right",
+      "toEnd": "arrow",
+      "label": "register_consumer"
+    },
+    {
+      "id": "n1",
+      "fromNode": "ext_rabbit",
+      "fromSide": "right",
+      "toNode": "notif_consumer_handler",
+      "toSide": "bottom",
+      "toEnd": "arrow",
+      "label": "telegram_notifications"
+    },
+    {
+      "id": "n2",
+      "fromNode": "notif_consumer_handler",
+      "fromSide": "bottom",
+      "toNode": "notif_sender",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "send_notification"
+    },
+    {
+      "id": "n3",
+      "fromNode": "notif_sender",
+      "fromSide": "bottom",
+      "toNode": "notif_backend_files",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "fetch_file"
+    },
+    {
+      "id": "n4",
+      "fromNode": "notif_backend_files",
+      "fromSide": "right",
+      "toNode": "ext_backend",
+      "toSide": "right",
+      "toEnd": "arrow",
+      "label": "GET /files/{id}"
+    },
+    {
+      "id": "n5",
+      "fromNode": "notif_sender",
+      "fromSide": "bottom",
+      "toNode": "notif_idempotency",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "claim/complete/release"
+    },
+    {
+      "id": "n6",
+      "fromNode": "notif_idempotency",
+      "fromSide": "right",
+      "toNode": "ext_redis",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "Redis"
+    },
+    {
+      "id": "n7",
+      "fromNode": "notif_sender",
+      "fromSide": "top",
+      "toNode": "ext_telegram",
+      "toSide": "right",
+      "toEnd": "arrow",
+      "label": "send_message / photo / document"
+    },
+    {
+      "id": "b2",
+      "fromNode": "app_app",
+      "fromSide": "bottom",
+      "toNode": "app_dispatcher",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "create_dispatcher"
+    },
+    {
+      "id": "b3",
+      "fromNode": "app_dispatcher",
+      "fromSide": "bottom",
+      "toNode": "app_registry",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "register_routers"
+    },
+    {
+      "id": "tg1",
+      "fromNode": "ext_telegram",
+      "fromSide": "left",
+      "toNode": "app_dispatcher",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "updates (long-polling)"
+    },
+    {
+      "id": "r1",
+      "fromNode": "app_registry",
+      "fromSide": "right",
+      "toNode": "g_system",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "include_router"
+    },
+    {
+      "id": "r3",
+      "fromNode": "app_registry",
+      "fromSide": "right",
+      "toNode": "g_support",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "include_router"
+    },
+    {
+      "id": "r4",
+      "fromNode": "app_registry",
+      "fromSide": "right",
+      "toNode": "g_notification",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "include_router"
+    },
+    {
+      "id": "r5",
+      "fromNode": "app_registry",
+      "fromSide": "right",
+      "toNode": "g_rmq",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "include_router"
+    },
+    {
+      "id": "e_start_persona",
+      "fromNode": "sys_handlers",
+      "fromSide": "bottom",
+      "toNode": "persona_0",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "/start"
+    },
+    {
+      "id": "e_start_business",
+      "fromNode": "sys_handlers",
+      "fromSide": "bottom",
+      "toNode": "business_0",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "/start business"
+    },
+    {
+      "id": "e_persona_state",
+      "fromNode": "persona_2",
+      "fromSide": "left",
+      "toNode": "sys_client",
+      "toSide": "bottom",
+      "toEnd": "arrow",
+      "label": "set_user_state"
+    },
+    {
+      "id": "e_business_state",
+      "fromNode": "business_2",
+      "fromSide": "left",
+      "toNode": "sys_client",
+      "toSide": "bottom",
+      "toEnd": "arrow",
+      "label": "set_user_state"
+    },
+    {
+      "id": "e_req_create",
+      "fromNode": "req_c1r1",
+      "fromSide": "left",
+      "toNode": "sys_client",
+      "toSide": "bottom",
+      "toEnd": "arrow",
+      "label": "create_requisition"
+    },
+    {
+      "id": "r2",
+      "fromNode": "app_registry",
+      "fromSide": "right",
+      "toNode": "g_req",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "include_router"
+    }
+  ]
+}

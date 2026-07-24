@@ -1,0 +1,1299 @@
+{
+  "nodes": [
+    {
+      "type": "group",
+      "id": "g_a",
+      "x": -500,
+      "y": 220,
+      "width": 1540,
+      "height": 520,
+      "label": "Runtime · Core · Внешняя инфраструктура"
+    },
+    {
+      "type": "group",
+      "id": "g_b",
+      "x": -500.0000000000001,
+      "y": 800.0000000000001,
+      "width": 2480,
+      "height": 1980,
+      "color": "2",
+      "label": "Контракт API  ·  52 эндпоинтов  (все маршруты под /api)"
+    },
+    {
+      "type": "group",
+      "id": "g_c",
+      "x": -500,
+      "y": 2820,
+      "width": 1960,
+      "height": 610,
+      "color": "6",
+      "label": "Модули  (handlers → services → models/schemas)"
+    },
+    {
+      "type": "group",
+      "id": "g_d",
+      "x": -510,
+      "y": 3490,
+      "width": 3138.6659409450745,
+      "height": 1590.8611982811235,
+      "color": "5",
+      "label": "Модель данных (ORM · PostgreSQL)"
+    },
+    {
+      "type": "group",
+      "id": "g_f",
+      "x": 1080,
+      "y": -60,
+      "width": 980,
+      "height": 810,
+      "color": "4",
+      "label": "Структура файлов"
+    },
+    {
+      "type": "text",
+      "id": "legend",
+      "x": -500.0000000000001,
+      "y": -60.000000000000014,
+      "width": 300,
+      "height": 260,
+      "color": "5",
+      "text": "## 🎨 Легенда — авторизация\n🟢 Public — без токена\n🟠 Bearer JWT (админ)\n🔴 X-Service-Token (server→server)\n🟣 Telegram initData (Mini App)\n🟡 JWT **или** Service-Token\n⚪ Debug-only (за флагами)\n\nСтрелки — потоки данных/сообщений."
+    },
+    {
+      "type": "text",
+      "id": "a_entry",
+      "x": -460,
+      "y": 289.99999999999994,
+      "width": 300,
+      "height": 200,
+      "color": "4",
+      "text": "### 🚀 main.py\n`FastAPI(lifespan=lifespan)`\n+ `CORSMiddleware` (cors_origins)\nвключает корневой `router`\n→ uvicorn"
+    },
+    {
+      "type": "text",
+      "id": "a_life",
+      "x": -99.99999999999997,
+      "y": 289.99999999999994,
+      "width": 300,
+      "height": 200,
+      "color": "4",
+      "text": "### ♻️ app/lifecycle.py\n`@asynccontextmanager lifespan`\n**startup:** bootstrap_admin →\ntaskiq runtime → rmq runtime\n**shutdown:** taskiq/rmq stop →\n`database.dispose()`"
+    },
+    {
+      "type": "text",
+      "id": "a_router",
+      "x": 260.00000000000006,
+      "y": 289.99999999999994,
+      "width": 320,
+      "height": 200,
+      "color": "4",
+      "text": "### 🧭 app/api/router.py\n`APIRouter(prefix=\"/api\")`\nсобирает роутеры всех модулей.\ntaskiq/rmq/tg_notification —\nтолько при `debug`+флаг."
+    },
+    {
+      "type": "text",
+      "id": "a_core",
+      "x": 640.0000000000001,
+      "y": 289.99999999999994,
+      "width": 340,
+      "height": 200,
+      "color": "4",
+      "text": "### ⚙️ app/core\n`config.py` — `MainSettings` (pydantic-settings, `.env`), `redis_url`\n`database.py` — async engine + `async_sessionmaker`, `get_session()`\n`security.py` — bcrypt, HS256 JWT"
+    },
+    {
+      "type": "text",
+      "id": "inf_pg",
+      "x": -460,
+      "y": 590,
+      "width": 240,
+      "height": 110,
+      "color": "5",
+      "text": "### 🐘 PostgreSQL\nasyncpg · SQLAlchemy 2.0\nAlembic-миграции"
+    },
+    {
+      "type": "text",
+      "id": "inf_rmq",
+      "x": -159.99999999999997,
+      "y": 590,
+      "width": 240,
+      "height": 110,
+      "color": "5",
+      "text": "### 🐰 RabbitMQ\naio_pika · exchange\n`app.events` (direct)"
+    },
+    {
+      "type": "text",
+      "id": "inf_redis",
+      "x": 140.00000000000006,
+      "y": 590,
+      "width": 240,
+      "height": 110,
+      "color": "5",
+      "text": "### 🧠 Redis\ntaskiq results +\nschedule source"
+    },
+    {
+      "type": "text",
+      "id": "inf_s3",
+      "x": 440.00000000000006,
+      "y": 590,
+      "width": 240,
+      "height": 110,
+      "color": "5",
+      "text": "### 🪣 MinIO / S3\naiobotocore\nфайлы (UUID-ключи)"
+    },
+    {
+      "type": "text",
+      "id": "inf_proc",
+      "x": 740.0000000000001,
+      "y": 590,
+      "width": 260,
+      "height": 110,
+      "color": "5",
+      "text": "### 🧩 Процессы\napi (uvicorn) · taskiq **worker**\n· taskiq **scheduler**"
+    },
+    {
+      "type": "text",
+      "id": "m_system",
+      "x": -460,
+      "y": 2890,
+      "width": 440,
+      "height": 230,
+      "color": "6",
+      "text": "## 🧱 system\n**Фундамент data-слоя. Своих таблиц нет.**\n- `Base` — авто `id`, table = lower(class)\n- `TimestampMixin` — `created_at`/`updated_at`\n- `CRUD` — generic create/bulk/get(pagination+search+filter)/patch/delete\n- `DBErrorHandler` — SQLAlchemy → HTTP 400/503/500"
+    },
+    {
+      "type": "text",
+      "id": "m_file",
+      "x": 20,
+      "y": 2890,
+      "width": 440,
+      "height": 230,
+      "color": "6",
+      "text": "## 📁 file_module\n**S3/MinIO + метаданные в `file`.**\n- `S3Client` — стрим в S3, UUID-ключи; откат объекта при ошибке БД\n- `DANGEROUS_INLINE_MIME_TYPES` → downgrade + `nosniff`\n- `upload_size` (413), `sanitize_filename` (anti-traversal/XSS)"
+    },
+    {
+      "type": "text",
+      "id": "m_admin",
+      "x": 500,
+      "y": 2890,
+      "width": 440,
+      "height": 230,
+      "color": "6",
+      "text": "## 🔐 admin_module\n**Аутентификация/авторизация админов.**\n- `Admin` (username/bcrypt/is_active); JWT HS256 (только access)\n- `dependencies`: `require_admin`, `require_service`, `require_admin_or_service`\n- `LoginRateLimiter` (in-memory, IP и IP+username·sha256)\n- `bootstrap_admin()` — сид при старте"
+    },
+    {
+      "type": "text",
+      "id": "m_chat",
+      "x": 980,
+      "y": 2890,
+      "width": 440,
+      "height": 230,
+      "color": "6",
+      "text": "## 💬 chat_module\n**Поддержка user ↔ admin.**\n- `ChatMessage` — плоский лог (direction, file, is_read)\n- inbound текст: RMQ-консьюмер `telegram_support_in`\n- inbound медиа: HTTP `/chat/inbound-media`\n- ответ админа → **outbox** `telegram_notifications`"
+    },
+    {
+      "type": "text",
+      "id": "m_req",
+      "x": -460,
+      "y": 3160,
+      "width": 440,
+      "height": 230,
+      "color": "6",
+      "text": "## 📨 requisition\n**Заявки (консультации/доступ/заказы).**\n- `Requisition` — универсальная: `type`+`status`+JSON `payload`\n- источники: бот (service) и Mini App (initData)\n- ⚠️ RMQ **напрямую** (не outbox)\n- public rate-limit (IP, IP+telegram_id)"
+    },
+    {
+      "type": "text",
+      "id": "m_tg",
+      "x": 20,
+      "y": 3160,
+      "width": 440,
+      "height": 230,
+      "color": "6",
+      "text": "## ✈️ telegram_module\n**Домен Telegram-юзеров + рассылки.**\n- `TelegramUser`/`UserProfile`(1:1)/`UserStats`(FSM)/`Drip*`\n- `newsletter_service` — чанки → **outbox** `telegram.newsletter`\n- `drip_sweep` — окна входа, claim `ON CONFLICT DO NOTHING`\n- `tasks.py` — cron `drip_newsletter_sweep` (1/мин)\n- `init_data.py` — HMAC+TTL валидация WebApp"
+    },
+    {
+      "type": "text",
+      "id": "m_rmq",
+      "x": 500,
+      "y": 3160,
+      "width": 440,
+      "height": 230,
+      "color": "6",
+      "text": "## 🐰 rmq_module\n**RabbitMQ (aio_pika). Опционально.**\n- `RMQPublisher` / `register_consumer` — абстракция брокера\n- **Transactional outbox**: `enqueue_outbox_message` →\n  `OutboxPublisherRuntime` (FOR UPDATE SKIP LOCKED, lease, backoff)\n- `RMQMessage` — конверт события; топология on-demand"
+    },
+    {
+      "type": "text",
+      "id": "m_taskiq",
+      "x": 980,
+      "y": 3160,
+      "width": 440,
+      "height": 230,
+      "color": "6",
+      "text": "## ⏱️ taskiq_module\n**Фоновые задачи + планировщик.**\n- `AioPikaBroker` (RMQ) + `RedisAsyncResultBackend`\n- `discovery` — импорт `<module>.tasks` = регистрация\n- источники: `RedisScheduleSource` + `LabelScheduleSource` (cron)\n- worker + scheduler — отдельные процессы; питает drip"
+    },
+    {
+      "type": "text",
+      "id": "d_note",
+      "x": -470,
+      "y": 3560,
+      "width": 320,
+      "height": 160,
+      "color": "5",
+      "text": "### 📖 Нотация\n`тип?` — nullable (NULL допустим)\n`→ таблица` — внешний ключ (FK)\n`uniq` · `idx` — ограничения/индексы\n`=знач` — default\nВсе таблицы наследуют `id` (PK) и\n`created_at`/`updated_at` (TimestampMixin)."
+    },
+    {
+      "type": "text",
+      "id": "t_tguser",
+      "x": 450,
+      "y": 3680,
+      "width": 390,
+      "height": 380,
+      "color": "3",
+      "text": "### 🧑 telegramuser\n_модуль: telegram_module_\n> _Неизменная идентичность Telegram-пользователя — корень для профиля, статистики, заявок и чата._\n\n- **id** `int` — PK\n- **telegram_id** `BigInt` uniq,idx — id юзера в Telegram\n- **username** `str(255)?` idx — @username\n- **first_name** `str(255)?`\n- **last_name** `str(255)?`\n- **is_blocket_bot** `bool`=false — заблокировал бота\n- **language_code** `str(16)?` — язык клиента\n- **created_at / updated_at** `datetime(tz)`\n→ user_profile (1:1) · user_stats (1:1)"
+    },
+    {
+      "type": "text",
+      "id": "t_profile",
+      "x": -111.1316047635406,
+      "y": 3527.473676654574,
+      "width": 398.787289414813,
+      "height": 397.8728941481304,
+      "color": "5",
+      "text": "### userprofile\n_модуль: telegram_module_\n> _Собираемые контактные данные пользователя (1:1 с telegramuser)._\n\n- **id** `int` — PK\n- **telegram_user_id** `int` → telegramuser (CASCADE), uniq — 1:1\n- **phone** `str(32)?`\n- **email** `str(255)?`\n- **timezone** `str(64)?` — таймзона юзера\n- **full_name** `str(255)?`\n- **note** `str(1000)?` — заметка\n- **created_at / updated_at** `datetime(tz)`"
+    },
+    {
+      "type": "text",
+      "id": "t_stats",
+      "x": -100,
+      "y": 3980,
+      "width": 400,
+      "height": 540,
+      "color": "5",
+      "text": "### userstats\n_модуль: telegram_module_\n> _Изменяемое поведение и FSM-состояние диалога (1:1 с telegramuser)._\n\n- **id** `int` — PK\n- **telegram_user_id** `int` → telegramuser (CASCADE), uniq — 1:1\n- **last_seen_at** `datetime(tz)?` — последний заход\n- **source** `str(255)?` — источник (deep-link/UTM)\n- **state** `str(255)?` — FSM-состояние диалога\n- **state_changed_at** `datetime(tz)?` — момент входа в state\n(listener; от него drip считает дни)\n- **created_at / updated_at** `datetime(tz)`\nidx (state, state_changed_at)"
+    },
+    {
+      "type": "text",
+      "id": "t_admin",
+      "x": -100,
+      "y": 4540,
+      "width": 400,
+      "height": 280,
+      "color": "5",
+      "text": "### admin\n_модуль: admin_module_\n> _Учётная запись администратора для входа в admin_miniapp._\n\n- **id** `int` — PK\n- **username** `str(255)` uniq,idx — логин\n- **hashed_password** `str(255)` — bcrypt-хеш\n- **is_active** `bool`=true — false = мгновенный отзыв доступа\n- **created_at / updated_at** `datetime(tz)`"
+    },
+    {
+      "type": "text",
+      "id": "t_file",
+      "x": 905.3685268359711,
+      "y": 4414.421125672456,
+      "width": 400,
+      "height": 380,
+      "color": "5",
+      "text": "### file\n_модуль: file_module_\n> _Метаданные файла в S3/MinIO (ссылка + имя); сам объект лежит в бакете._\n\n- **id** `int` — PK\n- **link** `str(1024)` — S3-URL / публичная ссылка\n- **name** `str(512)` — оригинальное имя файла\n- **note** `Text?` — комментарий\n- **created_at / updated_at** `datetime(tz)`"
+    },
+    {
+      "type": "text",
+      "id": "t_chat",
+      "x": 1174.7895328725078,
+      "y": 3543.736838327287,
+      "width": 410,
+      "height": 400,
+      "color": "5",
+      "text": "### chat_message\n_модуль: chat_module_\n> _Одно сообщение чата поддержки user ↔ admin (плоский лог)._\n\n- **id** `int` — PK\n- **telegram_user_id** `int` → telegramuser (CASCADE) — чей диалог\n- **direction** `str(8)` — 'user' | 'admin'\n- **text** `Text?` — текст/подпись (NULL если только файл)\n- **tg_message_id** `BigInt?` — id сообщения в Telegram (у user)\n- **file_id** `int?` → file (SET NULL) — вложение\n- **is_read** `bool`=false — прочитано админом (для user)\n- **created_at / updated_at** `datetime(tz)`\nidx (telegram_user_id, created_at)"
+    },
+    {
+      "type": "text",
+      "id": "t_req",
+      "x": 1180.2105867634123,
+      "y": 3964.763149709121,
+      "width": 410,
+      "height": 350,
+      "color": "5",
+      "text": "### requisitions\n_модуль: requisition_\n> _Универсальная заявка пользователя: тип + статус + произвольный payload._\n\n- **id** `int` — PK\n- **telegram_user_id** `int` → telegramuser (CASCADE), idx\n- **type** `str(50)` idx — 'consultation' | 'community' …\n- **status** `str(30)`='pending' idx —\npending/in_progress/approved/rejected\n- **payload** `JSON`={} — ответы опросника (произвольные)\n- **admin_comment** `str(1024)?` — комментарий при обработке\n- **created_at / updated_at** `datetime(tz)`"
+    },
+    {
+      "type": "text",
+      "id": "t_drip",
+      "x": 1431.3231874140133,
+      "y": 4491.719728182548,
+      "width": 430,
+      "height": 500,
+      "color": "5",
+      "text": "### dripnewsletter\n_модуль: telegram_module_\n> _Правило капельной рассылки: вход в state → через N дней отправить сообщение._\n\n- **id** `int` — PK\n- **title** `str(255)?` — название для админки\n- **trigger_state** `str(255)` — состояние-триггер (user_stats.state)\n- **days_offset** `int` ≥0 — через N дней после входа (0 = в тот же день)\n- **send_time** `time` — «настенное» время в drip_timezone\n- **text** `Text?` — текст сообщения\n- **use_buttons** `str(16)?` — INLINE | REPLY\n- **buttons** `JSON?` — [{text, url, callback_data}]\n- **file_id** `int?` → file (SET NULL) — вложение\n- **is_active** `bool`=true\n- **created_at / updated_at** `datetime(tz)`\nCHECK days_offset≥0 · idx (is_active, trigger_state)"
+    },
+    {
+      "type": "text",
+      "id": "t_dripsend",
+      "x": 1712.664775009225,
+      "y": 4103.981456993986,
+      "width": 480.1841833999058,
+      "height": 364.0445051998986,
+      "color": "5",
+      "text": "### dripnewslettersend\n_модуль: telegram_module_\n> _Лог отправок drip — гарантия «один раз на (правило, юзер)»._\n\n- **id** `int` — PK\n- **drip_newsletter_id** `int` → dripnewsletter (CASCADE)\n- **telegram_user_id** `int` → telegramuser (CASCADE)\n- **broadcast_id** `str(64)?` — трассировка к логам бота / Redis\n- **created_at / updated_at** `datetime(tz)`\nUNIQUE (drip_newsletter_id, telegram_user_id)\n— доставка 1 раз на (правило, юзер)"
+    },
+    {
+      "type": "text",
+      "id": "t_outbox",
+      "x": 2183.655824290541,
+      "y": 3524.7631497091215,
+      "width": 419.3016089999637,
+      "height": 744.2286885998046,
+      "color": "2",
+      "text": "### rmq_outbox_message\n_модуль: rmq_module_\n> _Событие RMQ, публикуемое только после commit транзакции (transactional outbox)._\n\n- **id** `int` — PK\n- **message_id** `str(36)` uniq — стабильный id (идемпотентность)\n- **event** `str(255)` — имя события\n- **payload** `JSON` — тело события\n- **exchange_name** `str(255)`\n- **exchange_type** `str(32)` — напр. direct\n- **routing_key** `str(255)`\n- **queue_name** `str(255)?`\n- **source** `str(255)` — приложение-источник\n- **correlation_id** `str(255)?`\n- **status** `str(16)`='pending' — pending/processing/published\n- **attempts** `int`=0 — число попыток публикации\n- **available_at** `datetime(tz)` — когда доступно к отправке (backoff)\n- **locked_until** `datetime(tz)?` — lease диспетчера\n- **published_at** `datetime(tz)?`\n- **last_error** `Text?` — последняя ошибка\n- **created_at / updated_at** `datetime(tz)`\nidx (status, available_at, id) · idx (locked_until)"
+    },
+    {
+      "type": "text",
+      "id": "f_sched",
+      "x": 1578.1965086005266,
+      "y": 49.19411079922611,
+      "width": 320,
+      "height": 110,
+      "color": "5",
+      "text": "### ⏱️ taskiq scheduler\n`LabelScheduleSource` cron `* * * * *`"
+    },
+    {
+      "type": "text",
+      "id": "f_tree",
+      "x": 1120,
+      "y": 10,
+      "width": 900,
+      "height": 700,
+      "color": "4",
+      "text": "## 🗂️ Структура файлов  `apps/backend`\n\n```text\napps/backend/\n├── main.py                     # FastAPI app + CORS + lifespan\n├── alembic/                    # миграции БД\n├── docker-entrypoint.sh        # применяет миграции, старт uvicorn\n└── app/\n    ├── api/router.py           # корневой APIRouter(prefix=\"/api\")\n    ├── lifecycle.py            # startup/shutdown (admin, taskiq, rmq)\n    ├── core/\n    │   ├── config.py           # MainSettings (pydantic-settings)\n    │   ├── database.py         # async engine + get_session()\n    │   └── security.py         # bcrypt + JWT HS256\n    └── modules/\n        ├── __init__.py         # реестр ORM-моделей для Alembic\n        ├── system/             # Base, TimestampMixin, CRUD, health\n        ├── file_module/        # S3Client, upload_size, sanitize_filename\n        ├── admin_module/       # Admin, JWT, dependencies, rate-limit\n        ├── chat_module/        # ChatMessage, chat_service, consumer_handler\n        ├── requisition/        # Requisition, requisition_service\n        ├── telegram_module/    # users/profile/stats/drip, newsletter, init_data\n        ├── rmq_module/         # publisher, consumer, outbox, registry, topology\n        └── taskiq_module/      # broker, scheduler, discovery, scheduling\n```\n\nТипичный модуль: `handlers.py` (валидация/делегирование) · `services/` (логика) · `models/`* · `schemas/` · `utils/`* · `CLAUDE.md` + `API.md`.\n\\* — где применимо: `utils/` есть у system/file/rmq/telegram; у `taskiq_module` нет `models/` (инфраструктурный)."
+    },
+    {
+      "type": "text",
+      "id": "apihdr_system",
+      "x": -460.0000000000001,
+      "y": 850.0000000000001,
+      "width": 320,
+      "height": 48,
+      "text": "#### 🩺 system · `/api/system`  ⟨2⟩"
+    },
+    {
+      "type": "text",
+      "id": "ep_get_api_system_health",
+      "x": -460.0000000000001,
+      "y": 914.0000000000001,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🩺 `GET /api/system/health`\n_system_\nПроверка живости приложения"
+    },
+    {
+      "type": "text",
+      "id": "ep_get_api_system_health_db",
+      "x": -460.0000000000001,
+      "y": 1084,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🩺 `GET /api/system/health/db`\n_system_\nПроверка доступности БД"
+    },
+    {
+      "type": "text",
+      "id": "apihdr_auth",
+      "x": -115.00000000000009,
+      "y": 850.0000000000001,
+      "width": 320,
+      "height": 48,
+      "text": "#### 🔑 auth · `/api/auth`  ⟨6⟩"
+    },
+    {
+      "type": "text",
+      "id": "ep_post_api_auth_login",
+      "x": -115.00000000000009,
+      "y": 914.0000000000001,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟢 `POST /api/auth/login`\n_admin_module_\n`LoginRequest` ⇒ `TokenResponse`\nЛогин админа, выдаёт JWT"
+    },
+    {
+      "type": "text",
+      "id": "ep_get_api_auth_me",
+      "x": -115.00000000000009,
+      "y": 1084,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `GET /api/auth/me`\n_admin_module_\n⇒ `AdminRead`\nТекущий администратор по токену"
+    },
+    {
+      "type": "text",
+      "id": "ep_get_api_auth_admins",
+      "x": -115.00000000000009,
+      "y": 1254,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `GET /api/auth/admins`\n_admin_module_\n`query` ⇒ `list[AdminRead]`\nСписок администраторов"
+    },
+    {
+      "type": "text",
+      "id": "ep_post_api_auth_admins",
+      "x": -115.00000000000009,
+      "y": 1424,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `POST /api/auth/admins`\n_admin_module_\n`AdminCreate` ⇒ `AdminRead`\nСоздание администратора"
+    },
+    {
+      "type": "text",
+      "id": "ep_patch_api_auth_admins_id",
+      "x": -115.00000000000009,
+      "y": 1594,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `PATCH /api/auth/admins/{id}`\n_admin_module_\n`AdminPatch` ⇒ `AdminRead`\nОбновление администратора"
+    },
+    {
+      "type": "text",
+      "id": "ep_delete_api_auth_admins_id",
+      "x": -115.00000000000009,
+      "y": 1764,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `DELETE /api/auth/admins/{id}`\n_admin_module_\nУдаление администратора"
+    },
+    {
+      "type": "text",
+      "id": "apihdr_files",
+      "x": 229.99999999999994,
+      "y": 850.0000000000001,
+      "width": 320,
+      "height": 48,
+      "text": "#### 📁 files · `/api/files`  ⟨3⟩"
+    },
+    {
+      "type": "text",
+      "id": "ep_post_api_files",
+      "x": 229.99999999999994,
+      "y": 914.0000000000001,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `POST /api/files/`\n_file_module_\n`multipart` ⇒ `FileRead`\nЗагрузка файла в S3"
+    },
+    {
+      "type": "text",
+      "id": "ep_get_api_files_id",
+      "x": 229.99999999999994,
+      "y": 1084,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟡 `GET /api/files/{id}`\n_file_module_\n⇒ `StreamingResponse`\nСкачивание файла потоком"
+    },
+    {
+      "type": "text",
+      "id": "ep_delete_api_files_id",
+      "x": 229.99999999999994,
+      "y": 1254,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `DELETE /api/files/{id}`\n_file_module_\nУдаление файла из БД и S3"
+    },
+    {
+      "type": "text",
+      "id": "apihdr_chat",
+      "x": 575,
+      "y": 850.0000000000001,
+      "width": 320,
+      "height": 48,
+      "text": "#### 💬 chat · `/api/chat`  ⟨5⟩"
+    },
+    {
+      "type": "text",
+      "id": "ep_get_api_chat_conversations",
+      "x": 579.9999999999998,
+      "y": 910,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `GET /api/chat/conversations`\n_chat_module_\n`query` ⇒ `list[ConversationRead]`\nСписок диалогов поддержки"
+    },
+    {
+      "type": "text",
+      "id": "ep_get_api_chat_conversations_id_messages",
+      "x": 579.9999999999998,
+      "y": 1080,
+      "width": 319.99999999999994,
+      "height": 179.99999999999997,
+      "text": "##### 🟠 `GET /api/chat/conversations/{id}/messages`\n_chat_module_\n`query` ⇒ `list[ChatMessageRead]`\nСообщения одного диалога"
+    },
+    {
+      "type": "text",
+      "id": "ep_post_api_chat_conversations_id_reply",
+      "x": 579.9999999999998,
+      "y": 1270,
+      "width": 316.89966499444995,
+      "height": 173.93646005179926,
+      "text": "##### 🟠 `POST /api/chat/conversations/{id}/reply`\n_chat_module_\n`multipart` ⇒ `ChatMessageRead`\nОтвет админа: текст/файл → outbox"
+    },
+    {
+      "type": "text",
+      "id": "ep_post_api_chat_conversations_id_read",
+      "x": 579.9999999999998,
+      "y": 1470,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `POST /api/chat/conversations/{id}/read`\n_chat_module_\nПометить сообщения прочитанными"
+    },
+    {
+      "type": "text",
+      "id": "ep_post_api_chat_inbound_media",
+      "x": 579.9999999999998,
+      "y": 1630,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🔴 `POST /api/chat/inbound-media`\n_chat_module_\n`multipart` ⇒ `ChatMessageRead`\nПриём медиа от бота (s2s)"
+    },
+    {
+      "type": "text",
+      "id": "apihdr_requisitions",
+      "x": 920,
+      "y": 850.0000000000001,
+      "width": 320,
+      "height": 48,
+      "text": "#### 📨 requisitions · `/api/requisitions`  ⟨5⟩"
+    },
+    {
+      "type": "text",
+      "id": "ep_post_api_requisitions",
+      "x": 920,
+      "y": 914.0000000000001,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🔴 `POST /api/requisitions`\n_requisition_\n`RequisitionCreate` ⇒ `RequisitionRead`\nСоздание заявки от бота"
+    },
+    {
+      "type": "text",
+      "id": "ep_post_api_requisitions_public",
+      "x": 920,
+      "y": 1084,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟣 `POST /api/requisitions/public`\n_requisition_\n`RequisitionPublicCreate` ⇒ `RequisitionRead`\nЗаявка из Mini App по initData"
+    },
+    {
+      "type": "text",
+      "id": "ep_get_api_requisitions",
+      "x": 920,
+      "y": 1254,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `GET /api/requisitions`\n_requisition_\n`query` ⇒ `list[RequisitionRead]`\nСписок заявок с фильтрами"
+    },
+    {
+      "type": "text",
+      "id": "ep_get_api_requisitions_id",
+      "x": 920,
+      "y": 1424,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `GET /api/requisitions/{id}`\n_requisition_\n⇒ `RequisitionRead`\nДетали конкретной заявки"
+    },
+    {
+      "type": "text",
+      "id": "ep_patch_api_requisitions_id_status",
+      "x": 920,
+      "y": 1594,
+      "width": 319.99999999999994,
+      "height": 199.99999999999997,
+      "text": "##### 🟠 `PATCH /api/requisitions/{id}/status`\n_requisition_\n`RequisitionStatusUpdate` ⇒ `RequisitionRead`\nСмена статуса → RMQ notify"
+    },
+    {
+      "type": "text",
+      "id": "apihdr_rmq",
+      "x": 1265,
+      "y": 850.0000000000001,
+      "width": 320,
+      "height": 48,
+      "text": "#### 🐰 rmq · `/api/rmq`  ⟨4⟩"
+    },
+    {
+      "type": "text",
+      "id": "ep_get_api_rmq_health",
+      "x": 1265,
+      "y": 914.0000000000001,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟢 `GET /api/rmq/health`\n_rmq_module_\n⇒ `RMQRuntimeHealth`\nСостояние RabbitMQ-рантайма"
+    },
+    {
+      "type": "text",
+      "id": "ep_get_api_rmq_registrations",
+      "x": 1265,
+      "y": 1084,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟢 `GET /api/rmq/registrations`\n_rmq_module_\n⇒ `list[RMQRegistrationRead]`\nСписок регистраций RMQ"
+    },
+    {
+      "type": "text",
+      "id": "ep_post_api_rmq_publish",
+      "x": 1265,
+      "y": 1254,
+      "width": 320,
+      "height": 145,
+      "text": "##### ⚪ `POST /api/rmq/publish`\n_rmq_module_\n`RMQPublishRequest` ⇒ `RMQPublishResponse`\nПубликация сообщения (debug)"
+    },
+    {
+      "type": "text",
+      "id": "ep_post_api_rmq_consume",
+      "x": 1265,
+      "y": 1424,
+      "width": 320,
+      "height": 145,
+      "text": "##### ⚪ `POST /api/rmq/consume`\n_rmq_module_\n`RMQConsumeRequest` ⇒ `RMQConsumeResponse`\nЧтение сообщения (debug)"
+    },
+    {
+      "type": "text",
+      "id": "apihdr_taskiq",
+      "x": 1610,
+      "y": 850.0000000000001,
+      "width": 320,
+      "height": 48,
+      "text": "#### ⏱️ taskiq · `/api/taskiq`  ⟨4⟩"
+    },
+    {
+      "type": "text",
+      "id": "ep_post_api_taskiq_schedule",
+      "x": 1610,
+      "y": 914.0000000000001,
+      "width": 320,
+      "height": 145,
+      "text": "##### ⚪ `POST /api/taskiq/schedule`\n_taskiq_module_\n`ScheduleAtRequest` ⇒ `ScheduleResponse`\nПланирование на время (debug)"
+    },
+    {
+      "type": "text",
+      "id": "ep_post_api_taskiq_schedule_after",
+      "x": 1610,
+      "y": 1084,
+      "width": 320,
+      "height": 145,
+      "text": "##### ⚪ `POST /api/taskiq/schedule/after`\n_taskiq_module_\n`ScheduleAfterRequest` ⇒ `ScheduleResponse`\nПланирование с задержкой (debug)"
+    },
+    {
+      "type": "text",
+      "id": "ep_get_api_taskiq_schedules",
+      "x": 1610,
+      "y": 1254,
+      "width": 320,
+      "height": 145,
+      "text": "##### ⚪ `GET /api/taskiq/schedules`\n_taskiq_module_\n⇒ `list[ScheduledTaskRead]`\nСписок отложенных задач (debug)"
+    },
+    {
+      "type": "text",
+      "id": "ep_delete_api_taskiq_schedules_id",
+      "x": 1610,
+      "y": 1424,
+      "width": 320,
+      "height": 145,
+      "text": "##### ⚪ `DELETE /api/taskiq/schedules/{id}`\n_taskiq_module_\nОтмена отложенной задачи (debug)"
+    },
+    {
+      "type": "text",
+      "id": "apihdr_telegram",
+      "x": -460.0000000000001,
+      "y": 1969,
+      "width": 2045,
+      "height": 48,
+      "text": "#### ✈️ telegram · `/api/telegram`  ⟨23⟩  — домен Telegram: users · profile · stats · newsletter · drip · bot s2s"
+    },
+    {
+      "type": "text",
+      "id": "ep_put_api_telegram_state",
+      "x": -460.0000000000001,
+      "y": 2041,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🔴 `PUT /api/telegram/state`\n_telegram_module_\n`UserStateUpdate` ⇒ `UserStatsRead`\nУстановка состояния воронки ботом"
+    },
+    {
+      "type": "text",
+      "id": "ep_post_api_telegram_login",
+      "x": -115.00000000000009,
+      "y": 2041,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🔴 `POST /api/telegram/login`\n_telegram_module_\n`TelegramUserLogin` ⇒ `TelegramUserRead`\nЛогин Telegram-пользователя ботом"
+    },
+    {
+      "type": "text",
+      "id": "ep_post_api_telegram_users",
+      "x": 239.99999999999994,
+      "y": 2030,
+      "width": 320,
+      "height": 180,
+      "text": "##### 🟡 `POST /api/telegram/users`\n_telegram_module_\n`TelegramUserRegister` ⇒ `TelegramUserRead`\nСоздание пользователя (idempotent)"
+    },
+    {
+      "type": "text",
+      "id": "ep_post_api_telegram_users_bulk",
+      "x": 580,
+      "y": 2040,
+      "width": 320,
+      "height": 180,
+      "text": "##### 🟠 `POST /api/telegram/users/bulk`\n_telegram_module_\n`list[TelegramUserRegister]` ⇒ `list[TelegramUserRead]`\nМассовое создание пользователей"
+    },
+    {
+      "type": "text",
+      "id": "ep_get_api_telegram_users_id",
+      "x": 1265,
+      "y": 2041,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `GET /api/telegram/users/{id}`\n_telegram_module_\n⇒ `TelegramUserRead`\nПользователь по id"
+    },
+    {
+      "type": "text",
+      "id": "ep_patch_api_telegram_users_id",
+      "x": -460.0000000000001,
+      "y": 2211,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `PATCH /api/telegram/users/{id}`\n_telegram_module_\n`TelegramUserPatch` ⇒ `TelegramUserRead`\nОбновление пользователя"
+    },
+    {
+      "type": "text",
+      "id": "ep_delete_api_telegram_users_id",
+      "x": -115.00000000000009,
+      "y": 2211,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `DELETE /api/telegram/users/{id}`\n_telegram_module_\nУдаление пользователя"
+    },
+    {
+      "type": "text",
+      "id": "ep_post_api_telegram_newsletter",
+      "x": 239.99999999999994,
+      "y": 2230,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `POST /api/telegram/newsletter`\n_telegram_module_\n`multipart` ⇒ `NewsletterResult`\nЗапуск рассылки → outbox (чанки)"
+    },
+    {
+      "type": "text",
+      "id": "ep_post_api_telegram_drip_newsletters",
+      "x": 580,
+      "y": 2240,
+      "width": 320,
+      "height": 180,
+      "text": "##### 🟠 `POST /api/telegram/drip-newsletters`\n_telegram_module_\n`multipart` ⇒ `DripNewsletterRead`\nСоздание капельной рассылки"
+    },
+    {
+      "type": "text",
+      "id": "ep_patch_api_telegram_drip_newsletters_id",
+      "x": 1265,
+      "y": 2211,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `PATCH /api/telegram/drip-newsletters/{id}`\n_telegram_module_\n`DripNewsletterPatch` ⇒ `DripNewsletterRead`\nОбновление капельной рассылки"
+    },
+    {
+      "type": "text",
+      "id": "ep_delete_api_telegram_drip_newsletters_id",
+      "x": -460.0000000000001,
+      "y": 2381,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `DELETE /api/telegram/drip-newsletters/{id}`\n_telegram_module_\nУдаление капельной рассылки"
+    },
+    {
+      "type": "text",
+      "id": "ep_post_api_telegram_profile",
+      "x": -115.00000000000009,
+      "y": 2381,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `POST /api/telegram/profile`\n_telegram_module_\n`UserProfileCreate` ⇒ `UserProfileRead`\nСоздание профиля"
+    },
+    {
+      "type": "text",
+      "id": "ep_get_api_telegram_profile",
+      "x": 239.99999999999994,
+      "y": 2390,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `GET /api/telegram/profile`\n_telegram_module_\n`query` ⇒ `list[UserProfileRead]`\nСписок профилей"
+    },
+    {
+      "type": "text",
+      "id": "ep_get_api_telegram_profile_id",
+      "x": 580,
+      "y": 2440,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `GET /api/telegram/profile/{id}`\n_telegram_module_\n⇒ `UserProfileRead`\nПрофиль по id"
+    },
+    {
+      "type": "text",
+      "id": "ep_patch_api_telegram_profile_id",
+      "x": 920,
+      "y": 2411,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `PATCH /api/telegram/profile/{id}`\n_telegram_module_\n`UserProfilePatch` ⇒ `UserProfileRead`\nОбновление профиля"
+    },
+    {
+      "type": "text",
+      "id": "ep_delete_api_telegram_profile_id",
+      "x": 1265,
+      "y": 2381,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `DELETE /api/telegram/profile/{id}`\n_telegram_module_\nУдаление профиля"
+    },
+    {
+      "type": "text",
+      "id": "ep_post_api_telegram_stats",
+      "x": -460.0000000000001,
+      "y": 2551,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `POST /api/telegram/stats`\n_telegram_module_\n`UserStatsCreate` ⇒ `UserStatsRead`\nСоздание статистики"
+    },
+    {
+      "type": "text",
+      "id": "ep_get_api_telegram_stats",
+      "x": -115.00000000000009,
+      "y": 2551,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `GET /api/telegram/stats`\n_telegram_module_\n`query` ⇒ `list[UserStatsRead]`\nСписок статистики"
+    },
+    {
+      "type": "text",
+      "id": "ep_get_api_telegram_stats_id",
+      "x": 239.99999999999994,
+      "y": 2560,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `GET /api/telegram/stats/{id}`\n_telegram_module_\n⇒ `UserStatsRead`\nСтатистика по id"
+    },
+    {
+      "type": "text",
+      "id": "ep_patch_api_telegram_stats_id",
+      "x": 580,
+      "y": 2600,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `PATCH /api/telegram/stats/{id}`\n_telegram_module_\n`UserStatsPatch` ⇒ `UserStatsRead`\nОбновление статистики"
+    },
+    {
+      "type": "text",
+      "id": "ep_delete_api_telegram_stats_id",
+      "x": 920,
+      "y": 2581,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `DELETE /api/telegram/stats/{id}`\n_telegram_module_\nУдаление статистики"
+    },
+    {
+      "type": "text",
+      "id": "ep_get_api_telegram_users",
+      "x": 920,
+      "y": 2040,
+      "width": 320,
+      "height": 145,
+      "text": "##### 🟠 `GET /api/telegram/users`\n_telegram_module_\n`query` ⇒ `list[TelegramUserRead]`\nСписок Telegram-пользователей"
+    },
+    {
+      "type": "text",
+      "id": "ep_get_api_telegram_drip_newsletters",
+      "x": 920,
+      "y": 2210,
+      "width": 320,
+      "height": 180,
+      "text": "##### 🟠 `GET /api/telegram/drip-newsletters`\n_telegram_module_\n`query` ⇒ `list[DripNewsletterRead]`\nСписок капельных рассылок"
+    },
+    {
+      "type": "group",
+      "id": "g_q",
+      "x": -540,
+      "y": 5120,
+      "width": 1620,
+      "height": 1060,
+      "color": 1,
+      "label": "RMQ — топология очередей  (exchange app.events · direct · durable)"
+    },
+    {
+      "type": "text",
+      "id": "rmq_note",
+      "x": -500,
+      "y": 5180,
+      "width": 1420,
+      "height": 96,
+      "color": 2,
+      "text": "### 🧧 Конверт `RMQMessage` + топология\n`event · payload · message_id · timestamp · source · correlation_id` — консюмер валидирует payload per-module Pydantic-схемой.  **✅ outbox** = транзакционный outbox (`FOR UPDATE SKIP LOCKED`, lease, retry) · **⚠️ direct** = публикация мимо outbox (гонка commit/publish).  Тип exchange `direct`, `routing_key == имя очереди` → точка-точка, без wildcard-роутинга."
+    },
+    {
+      "type": "text",
+      "id": "rmq_ex",
+      "x": 0,
+      "y": 5560,
+      "width": 260,
+      "height": 220,
+      "color": 1,
+      "text": "## 🐰 exchange\n### `app.events`\n\n**direct · durable**\n`delivery_mode=`\n`PERSISTENT`"
+    },
+    {
+      "type": "text",
+      "id": "rmq_pub_0_0",
+      "x": -500,
+      "y": 5320,
+      "width": 300,
+      "height": 86,
+      "text": "**requisition · смена статуса**\n`telegram.notification`\n⚠️ direct"
+    },
+    {
+      "type": "text",
+      "id": "rmq_pub_0_1",
+      "x": -500,
+      "y": 5420,
+      "width": 300,
+      "height": 86,
+      "text": "**requisition · miniapp ack**\n`telegram.notification`\n⚠️ direct"
+    },
+    {
+      "type": "text",
+      "id": "rmq_pub_0_2",
+      "x": -500,
+      "y": 5520,
+      "width": 300,
+      "height": 86,
+      "color": 2,
+      "text": "**chat · ответ админа**\n`telegram.notification`\n✅ outbox"
+    },
+    {
+      "type": "text",
+      "id": "rmq_pub_0_3",
+      "x": -500,
+      "y": 5620,
+      "width": 300,
+      "height": 86,
+      "color": 2,
+      "text": "**newsletter · рассылка**\n`telegram.newsletter`\n✅ outbox"
+    },
+    {
+      "type": "text",
+      "id": "rmq_pub_0_4",
+      "x": -500,
+      "y": 5720,
+      "width": 300,
+      "height": 86,
+      "color": 2,
+      "text": "**drip · sweep**\n`telegram.newsletter`\n✅ outbox"
+    },
+    {
+      "type": "text",
+      "id": "rmq_q_0",
+      "x": 500,
+      "y": 5480,
+      "width": 320,
+      "height": 158,
+      "color": 4,
+      "text": "### 📥 `telegram_notifications`\ndurable · rk `telegram_notifications`\nВсе исходящие в Telegram: статусы заявок, ответы\nчата, рассылки, drip. Два event'а в одной очереди.\n`payload:` chat_ids[] · message · file_id · buttons? ·\nbroadcast_id/chunk (для рассылок)"
+    },
+    {
+      "type": "text",
+      "id": "rmq_con_0",
+      "x": 740,
+      "y": 5340,
+      "width": 300,
+      "height": 118,
+      "color": 6,
+      "text": "### 🤖 tg_user_bot\n`handle_telegram_notification`\nRedis-дедуп `newsletter:{broadcast_id}:{chat_id}`\n(processing→sent) · шлёт через aiogram"
+    },
+    {
+      "type": "text",
+      "id": "rmq_pub_1_0",
+      "x": -500,
+      "y": 5820,
+      "width": 300,
+      "height": 86,
+      "text": "**requisition · создание**\n`requisition.created`\n⚠️ direct"
+    },
+    {
+      "type": "text",
+      "id": "rmq_q_1",
+      "x": 500,
+      "y": 5680,
+      "width": 320,
+      "height": 158,
+      "color": 4,
+      "text": "### 📥 `admin_requisitions`\ndurable · rk `admin_requisitions`\nУведомление о каждой новой заявке.\n`payload:` requisition_id · telegram_id ·\nusername · type · payload · created_at"
+    },
+    {
+      "type": "text",
+      "id": "rmq_con_1",
+      "x": 760,
+      "y": 5860,
+      "width": 300,
+      "height": 118,
+      "text": "### — нет консюмера\nрезерв под будущий `admin_bot`\n⚠️ сообщения копятся"
+    },
+    {
+      "type": "text",
+      "id": "rmq_pub_2_0",
+      "x": -500,
+      "y": 5940,
+      "width": 300,
+      "height": 86,
+      "text": "**🤖 tg_user_bot · support text**\n`telegram.support_message`\n⚠️ direct"
+    },
+    {
+      "type": "text",
+      "id": "rmq_q_2",
+      "x": 300,
+      "y": 5880,
+      "width": 320,
+      "height": 158,
+      "color": 4,
+      "text": "### 📤 `telegram_support_in`\ndurable · rk `telegram_support_in`\nВходящий текст поддержки из бота в бекенд.\n(фото/док идут по HTTP `POST /chat/inbound-media`)\n`payload:` telegram_id · text · tg_message_id"
+    },
+    {
+      "type": "text",
+      "id": "rmq_con_2",
+      "x": 740,
+      "y": 5996,
+      "width": 300,
+      "height": 118,
+      "color": 6,
+      "text": "### 🖥️ backend · chat_module\n`handle_support_message`\nсвоя сессия БД → `store_inbound`\nunknown id → ack+drop"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "fromNode": "a_entry",
+      "fromSide": "right",
+      "toNode": "a_router",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "color": "4"
+    },
+    {
+      "id": "e2",
+      "fromNode": "a_router",
+      "fromSide": "right",
+      "toNode": "a_core",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "color": "4"
+    },
+    {
+      "id": "e3",
+      "fromNode": "a_life",
+      "fromSide": "bottom",
+      "toNode": "inf_proc",
+      "toSide": "top",
+      "toEnd": "arrow"
+    },
+    {
+      "id": "e4",
+      "fromNode": "t_profile",
+      "fromSide": "right",
+      "toNode": "t_tguser",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "color": "5",
+      "label": "1:1"
+    },
+    {
+      "id": "e5",
+      "fromNode": "t_stats",
+      "fromSide": "right",
+      "toNode": "t_tguser",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "color": "5",
+      "label": "1:1"
+    },
+    {
+      "id": "e6",
+      "fromNode": "t_chat",
+      "fromSide": "left",
+      "toNode": "t_tguser",
+      "toSide": "right",
+      "toEnd": "arrow",
+      "color": "5",
+      "label": "FK CASCADE"
+    },
+    {
+      "id": "e7",
+      "fromNode": "t_req",
+      "fromSide": "left",
+      "toNode": "t_tguser",
+      "toSide": "right",
+      "toEnd": "arrow",
+      "color": "5",
+      "label": "FK CASCADE"
+    },
+    {
+      "id": "e8",
+      "fromNode": "t_chat",
+      "fromSide": "bottom",
+      "toNode": "t_file",
+      "toSide": "right",
+      "toEnd": "arrow",
+      "color": "5",
+      "label": "file_id · SET NULL"
+    },
+    {
+      "id": "e9",
+      "fromNode": "t_drip",
+      "fromSide": "left",
+      "toNode": "t_file",
+      "toSide": "right",
+      "toEnd": "arrow",
+      "color": "5",
+      "label": "file_id · SET NULL"
+    },
+    {
+      "id": "e11",
+      "fromNode": "t_dripsend",
+      "fromSide": "left",
+      "toNode": "t_tguser",
+      "toSide": "bottom",
+      "toEnd": "arrow",
+      "color": "5",
+      "label": "FK CASCADE"
+    },
+    {
+      "id": "e23",
+      "fromNode": "a_router",
+      "fromSide": "bottom",
+      "toNode": "g_b",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "color": "4",
+      "label": "маршруты"
+    },
+    {
+      "id": "57b22141-5415-421d-ae29-f3b391f7ed4e",
+      "fromNode": "t_dripsend",
+      "fromSide": "bottom",
+      "toNode": "t_drip",
+      "toSide": "right",
+      "toEnd": "arrow",
+      "color": "5",
+      "label": "FK CASCADE",
+      "style": "solid",
+      "shape": "curved"
+    },
+    {
+      "id": "e_rmq_pub_0_0_ex",
+      "fromNode": "rmq_pub_0_0",
+      "fromSide": "right",
+      "toNode": "rmq_ex",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "telegram.notification"
+    },
+    {
+      "id": "e_rmq_pub_0_1_ex",
+      "fromNode": "rmq_pub_0_1",
+      "fromSide": "right",
+      "toNode": "rmq_ex",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "telegram.notification"
+    },
+    {
+      "id": "e_rmq_pub_0_2_ex",
+      "fromNode": "rmq_pub_0_2",
+      "fromSide": "right",
+      "toNode": "rmq_ex",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "telegram.notification"
+    },
+    {
+      "id": "e_rmq_pub_0_3_ex",
+      "fromNode": "rmq_pub_0_3",
+      "fromSide": "right",
+      "toNode": "rmq_ex",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "telegram.newsletter"
+    },
+    {
+      "id": "e_rmq_pub_0_4_ex",
+      "fromNode": "rmq_pub_0_4",
+      "fromSide": "right",
+      "toNode": "rmq_ex",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "telegram.newsletter"
+    },
+    {
+      "id": "e_ex_rmq_q_0",
+      "fromNode": "rmq_ex",
+      "fromSide": "right",
+      "toNode": "rmq_q_0",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "telegram_notifications"
+    },
+    {
+      "id": "e_rmq_pub_1_0_ex",
+      "fromNode": "rmq_pub_1_0",
+      "fromSide": "right",
+      "toNode": "rmq_ex",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "requisition.created"
+    },
+    {
+      "id": "e_ex_rmq_q_1",
+      "fromNode": "rmq_ex",
+      "fromSide": "right",
+      "toNode": "rmq_q_1",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "admin_requisitions"
+    },
+    {
+      "id": "e_rmq_pub_2_0_ex",
+      "fromNode": "rmq_pub_2_0",
+      "fromSide": "right",
+      "toNode": "rmq_ex",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "telegram.support_message"
+    },
+    {
+      "id": "e_ex_rmq_q_2",
+      "fromNode": "rmq_ex",
+      "fromSide": "right",
+      "toNode": "rmq_q_2",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "telegram_support_in"
+    },
+    {
+      "id": "e_rmq_q_2_rmq_con_2",
+      "fromNode": "rmq_q_2",
+      "fromSide": "right",
+      "toNode": "rmq_con_2",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "consume"
+    },
+    {
+      "id": "896f72f1-c7fe-4af0-b932-f13a79b22c37",
+      "fromNode": "rmq_q_0",
+      "fromSide": "top",
+      "toNode": "rmq_con_0",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "consume",
+      "style": "solid",
+      "shape": "curved"
+    },
+    {
+      "id": "8410899f-7956-437e-99c4-557eda39d09a",
+      "fromNode": "rmq_q_1",
+      "fromSide": "bottom",
+      "toNode": "rmq_con_1",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "—",
+      "style": "solid",
+      "shape": "curved"
+    }
+  ]
+}

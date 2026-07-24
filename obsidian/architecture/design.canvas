@@ -1,0 +1,480 @@
+{
+  "nodes": [
+    {
+      "type": "text",
+      "id": "title",
+      "x": -540,
+      "y": -560,
+      "width": 1060,
+      "height": 150,
+      "text": "# 🧭 Leadorub — общий дизайн\n\nTelegram lead-management платформа для инфлюенсеров: **backend** (FastAPI) · **user-bot** (Aiogram) · **admin SPA** (Vue) · **client WebApp** · Docker-инфраструктура."
+    },
+    {
+      "type": "text",
+      "id": "legend",
+      "x": 620,
+      "y": -560,
+      "width": 520,
+      "height": 220,
+      "text": "### Обозначения связей\n🟩 HTTP (sync)  ·  🟧 RabbitMQ (async / outbox)\n🟦 данные / хранилище  ·  🟪 Telegram  ·  ▫️ логи\n\nУзлы **backend** и **tg_user_bot** ссылаются на детальные canvas-схемы."
+    },
+    {
+      "type": "text",
+      "id": "user",
+      "x": -1520,
+      "y": -40,
+      "width": 380,
+      "height": 170,
+      "text": "👤 **Пользователь Telegram**\nЛид / клиент инфлюенсера"
+    },
+    {
+      "type": "text",
+      "id": "admin",
+      "x": -1520,
+      "y": 620,
+      "width": 380,
+      "height": 170,
+      "text": "🛠️ **Администратор**\nПоддержка · заявки · рассылки"
+    },
+    {
+      "type": "text",
+      "id": "tgapi",
+      "x": -1020,
+      "y": -300,
+      "width": 380,
+      "height": 170,
+      "color": "6",
+      "text": "☁️ **Telegram Bot API**\nlong polling · WebApp · reactions"
+    },
+    {
+      "type": "text",
+      "id": "client_app",
+      "x": -1020,
+      "y": -40,
+      "width": 380,
+      "height": 170,
+      "color": "5",
+      "text": "📱 **Client Mini App**\nVue · Telegram WebApp\nФорма заявки (DMCAGuardian)\n`X-Telegram-Init-Data`"
+    },
+    {
+      "type": "text",
+      "id": "admin_app",
+      "x": -1020,
+      "y": 620,
+      "width": 380,
+      "height": 170,
+      "color": "5",
+      "text": "🖥️ **Admin Mini App**\nVue · Pinia SPA\nПользователи · заявки · чат · рассылки · дрип\n`Bearer JWT`"
+    },
+    {
+      "type": "text",
+      "id": "caddy",
+      "x": -520,
+      "y": 240,
+      "width": 380,
+      "height": 200,
+      "color": "3",
+      "text": "🚪 **Caddy (edge)**\nПубличный вход 80/443 · UDP 443\nСтатика мини-апп · reverse proxy `/api`\nBasic Auth: Grafana / MinIO / RabbitMQ UI"
+    },
+    {
+      "type": "text",
+      "id": "bot",
+      "x": 40,
+      "y": -300,
+      "width": 380,
+      "height": 190,
+      "color": "4",
+      "text": "🤖 **tg_user_bot** · Aiogram 3\nlong polling · без БД\nsystem · rmq · notification · support · requisition · persona · business\n→ [[tg_user_bot-schema.canvas|детальная схема]]"
+    },
+    {
+      "type": "text",
+      "id": "backend",
+      "x": 40,
+      "y": 240,
+      "width": 380,
+      "height": 200,
+      "color": "4",
+      "text": "⚙️ **backend** · FastAPI\nsystem · rmq · file · taskiq · admin · chat · requisition · telegram\nTransactional outbox · JWT · rate limiting\n→ [[backend-schema.canvas|детальная схема]]"
+    },
+    {
+      "type": "text",
+      "id": "taskiq",
+      "x": 40,
+      "y": 660,
+      "width": 380,
+      "height": 170,
+      "color": "4",
+      "text": "⏰ **TaskIQ worker + scheduler**\nОтложенные и cron-задачи\nДрип-рассылки · шарит код backend"
+    },
+    {
+      "type": "text",
+      "id": "rabbitmq",
+      "x": 640,
+      "y": -60,
+      "width": 380,
+      "height": 170,
+      "color": "2",
+      "text": "🐇 **RabbitMQ**\nexchange `app.events` (direct)\n`telegram_notifications` · `telegram_support_in`"
+    },
+    {
+      "type": "text",
+      "id": "redis",
+      "x": 640,
+      "y": 200,
+      "width": 380,
+      "height": 170,
+      "color": "6",
+      "text": "⚡ **Redis**\nRate limiting · idempotency (processing→sent)\nTaskIQ broker / result"
+    },
+    {
+      "type": "text",
+      "id": "postgres",
+      "x": 640,
+      "y": 440,
+      "width": 380,
+      "height": 170,
+      "color": "6",
+      "text": "🐘 **PostgreSQL**\nSQLAlchemy + Alembic\nОсновное хранилище"
+    },
+    {
+      "type": "text",
+      "id": "minio",
+      "x": 640,
+      "y": 680,
+      "width": 380,
+      "height": 170,
+      "color": "6",
+      "text": "🗃️ **MinIO (S3)**\nfile_module · вложения"
+    },
+    {
+      "type": "text",
+      "id": "alloy",
+      "x": 1220,
+      "y": 200,
+      "width": 380,
+      "height": 170,
+      "color": "1",
+      "text": "🔭 **Grafana Alloy**\nСбор логов приложений"
+    },
+    {
+      "type": "text",
+      "id": "loki",
+      "x": 1220,
+      "y": 440,
+      "width": 380,
+      "height": 170,
+      "color": "1",
+      "text": "📚 **Grafana Loki**\nХранилище логов"
+    },
+    {
+      "type": "text",
+      "id": "grafana",
+      "x": 1220,
+      "y": 680,
+      "width": 380,
+      "height": 170,
+      "color": "1",
+      "text": "📊 **Grafana**\nДашборды · алерты"
+    },
+    {
+      "type": "group",
+      "id": "g_actors",
+      "x": -1560,
+      "y": -104,
+      "width": 460,
+      "height": 934,
+      "label": "👥 Пользователи"
+    },
+    {
+      "type": "group",
+      "id": "g_ext",
+      "x": -1060,
+      "y": -364,
+      "width": 460,
+      "height": 274,
+      "label": "☁️ Внешнее"
+    },
+    {
+      "type": "group",
+      "id": "g_front",
+      "x": -1060,
+      "y": -104,
+      "width": 460,
+      "height": 934,
+      "label": "🖥️ Фронтенды"
+    },
+    {
+      "type": "group",
+      "id": "g_edge",
+      "x": -560,
+      "y": 176,
+      "width": 460,
+      "height": 304,
+      "label": "🚪 Edge"
+    },
+    {
+      "type": "group",
+      "id": "g_apps",
+      "x": 0,
+      "y": -364,
+      "width": 460,
+      "height": 1234,
+      "label": "⚙️ Приложения"
+    },
+    {
+      "type": "group",
+      "id": "g_data",
+      "x": 600,
+      "y": -124,
+      "width": 460,
+      "height": 1014,
+      "label": "🗄️ Данные и брокер"
+    },
+    {
+      "type": "group",
+      "id": "g_obs",
+      "x": 1180,
+      "y": 136,
+      "width": 460,
+      "height": 754,
+      "label": "📊 Наблюдаемость"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "fromNode": "user",
+      "fromSide": "right",
+      "toNode": "tgapi",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "color": "6",
+      "label": "сообщения · /start"
+    },
+    {
+      "id": "e2",
+      "fromNode": "tgapi",
+      "fromSide": "right",
+      "toNode": "bot",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "color": "6",
+      "label": "long polling · sendMessage"
+    },
+    {
+      "id": "e3",
+      "fromNode": "user",
+      "fromSide": "right",
+      "toNode": "client_app",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "color": "6",
+      "label": "открывает WebApp"
+    },
+    {
+      "id": "e4",
+      "fromNode": "client_app",
+      "fromSide": "right",
+      "toNode": "caddy",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "color": "4",
+      "label": "POST /api/requisitions\nX-Telegram-Init-Data"
+    },
+    {
+      "id": "e5",
+      "fromNode": "admin",
+      "fromSide": "right",
+      "toNode": "admin_app",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "color": "6",
+      "label": "работает"
+    },
+    {
+      "id": "e6",
+      "fromNode": "admin_app",
+      "fromSide": "right",
+      "toNode": "caddy",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "color": "4",
+      "label": "Admin API · Bearer JWT"
+    },
+    {
+      "id": "e7",
+      "fromNode": "caddy",
+      "fromSide": "right",
+      "toNode": "backend",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "color": "4",
+      "label": "reverse proxy /api"
+    },
+    {
+      "id": "e8",
+      "fromNode": "bot",
+      "fromSide": "bottom",
+      "toNode": "backend",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "color": "4",
+      "label": "X-Service-Token (s2s):\nlogin · users · state · requisitions · files · media"
+    },
+    {
+      "id": "e9",
+      "fromNode": "backend",
+      "fromSide": "right",
+      "toNode": "rabbitmq",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "color": "2",
+      "label": "outbox → telegram_notifications"
+    },
+    {
+      "id": "e10",
+      "fromNode": "rabbitmq",
+      "fromSide": "top",
+      "toNode": "bot",
+      "toSide": "right",
+      "toEnd": "arrow",
+      "color": "2",
+      "label": "consume telegram_notifications"
+    },
+    {
+      "id": "e11",
+      "fromNode": "bot",
+      "fromSide": "bottom",
+      "toNode": "rabbitmq",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "color": "2",
+      "label": "publish telegram_support_in"
+    },
+    {
+      "id": "e12",
+      "fromNode": "rabbitmq",
+      "fromSide": "bottom",
+      "toNode": "backend",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "color": "2",
+      "label": "consume telegram_support_in\n(chat_module)"
+    },
+    {
+      "id": "e13",
+      "fromNode": "backend",
+      "fromSide": "right",
+      "toNode": "postgres",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "color": "5",
+      "label": "SQLAlchemy"
+    },
+    {
+      "id": "e14",
+      "fromNode": "backend",
+      "fromSide": "right",
+      "toNode": "redis",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "color": "5",
+      "label": "rate limit · idempotency"
+    },
+    {
+      "id": "e15",
+      "fromNode": "bot",
+      "fromSide": "right",
+      "toNode": "redis",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "color": "5",
+      "label": "newsletter idempotency"
+    },
+    {
+      "id": "e16",
+      "fromNode": "backend",
+      "fromSide": "right",
+      "toNode": "minio",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "color": "5",
+      "label": "S3 файлы"
+    },
+    {
+      "id": "e17",
+      "fromNode": "taskiq",
+      "fromSide": "top",
+      "toNode": "rabbitmq",
+      "toSide": "bottom",
+      "toEnd": "arrow",
+      "color": "2",
+      "label": "publish drip newsletters"
+    },
+    {
+      "id": "e18",
+      "fromNode": "taskiq",
+      "fromSide": "right",
+      "toNode": "postgres",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "color": "5",
+      "label": "данные"
+    },
+    {
+      "id": "e19",
+      "fromNode": "taskiq",
+      "fromSide": "right",
+      "toNode": "redis",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "color": "5",
+      "label": "broker / result"
+    },
+    {
+      "id": "e20",
+      "fromNode": "backend",
+      "fromSide": "right",
+      "toNode": "alloy",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "logs"
+    },
+    {
+      "id": "e21",
+      "fromNode": "bot",
+      "fromSide": "right",
+      "toNode": "alloy",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "logs"
+    },
+    {
+      "id": "e22",
+      "fromNode": "taskiq",
+      "fromSide": "right",
+      "toNode": "alloy",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "label": "logs"
+    },
+    {
+      "id": "e23",
+      "fromNode": "alloy",
+      "fromSide": "bottom",
+      "toNode": "loki",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": ""
+    },
+    {
+      "id": "e24",
+      "fromNode": "loki",
+      "fromSide": "bottom",
+      "toNode": "grafana",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": ""
+    }
+  ]
+}
